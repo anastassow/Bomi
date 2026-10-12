@@ -12,7 +12,7 @@
 
 IrProgram* ir_program_new(void) {
     IrProgram* p = calloc(1, sizeof(IrProgram));
-    if ( p == NULL ) { perror("calloc failed on row 11 file ir.c"); exit(1); }
+    if ( p == NULL ) { printf("calloc failed in file: %s and line: %d ", __FILE__, __LINE__); exit(1); }
     return p;
 }
 
@@ -33,7 +33,7 @@ Operand ir_none(void) { return (Operand){.kind = OPD_NONE, .imm = 0}; }
 
 static Operand ir_emit(IrProgram *p, IrOp op, Operand a, Operand b) {
     Instr* i = calloc(1, sizeof(Instr));
-    if (!i ) { perror("calloc failed on row 32 file ir.c"); exit(1); }
+    if (!i ) { printf(" calloc failed in file: %s and line: %d", __FILE__, __LINE__); exit(1); }
 
     i->op = op;
     i->a = a;

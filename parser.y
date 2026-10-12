@@ -1,5 +1,5 @@
 %code requires { #include "ast.h" }
-
+    
 %{
 #include <stdio.h>
 #include "ir.h"
