@@ -1,82 +1,55 @@
-%code requires { #include "ast.h" }
-    
 %{
 #include <stdio.h>
-#include "ir.h"
-#include "lower.h"
-#include "codegen.h"                     /* ← NEW */
-
-int  yylex(void);
-void yyerror(const char *msg);
-extern FILE *yyin;
-extern int   yylineno;
-
-static IrProgram *prog;      /* the IR for the whole input file */
-static int        nerrors;   /* syntax errors seen */
+int yylex(void);
+void yyerror(const char *s);
 %}
 
-%union {
-    long  num;
-    Node *node;
-}
+%define api.value.type {long}
 
-%token <num> NUM
-%token PLUS MINUS TIMES DIVIDE LPAREN RPAREN NEWLINE
-%type  <node> expr
+%token CONSTANT
 
-%destructor { free_tree($$); } <node>
-
-%left  PLUS MINUS
-%left  TIMES DIVIDE
-%precedence NEG
+%start translation_unit
 
 %%
-input : %empty
-      | input line
-      ;
+primary_expression
+    : CONSTANT
+    | '(' expression ')' { $$ = $2; }
+    ;
 
-line  : NEWLINE
-      | expr NEWLINE      {
-                            Operand result = lower_expr(prog, $1);   /* AST → IR */
-                            ir_print_val(prog, result);              /* add a "print" instruction */
-                            free_tree($1);                           /* AST no longer needed */
-                          }
-      | error NEWLINE     { yyerrok; }
-      ;
+multiplicative_expression
+    : primary_expression
+    | multiplicative_expression '*' primary_expression { $$ = $1 * $3; }
+    | multiplicative_expression '/' primary_expression { $$ = $1 / $3; }
+    ;
 
-expr  : NUM                     { $$ = new_num($1); }
-      | expr PLUS   expr        { $$ = new_binop('+', $1, $3); }
-      | expr MINUS  expr        { $$ = new_binop('-', $1, $3); }
-      | expr TIMES  expr        { $$ = new_binop('*', $1, $3); }
-      | expr DIVIDE expr        { $$ = new_binop('/', $1, $3); }
-      | MINUS expr %prec NEG    { $$ = new_neg($2); }
-      | LPAREN expr RPAREN      { $$ = $2; }
-      ;
+additive_expression
+	: multiplicative_expression
+	| additive_expression '+' multiplicative_expression { $$ = $1 + $3; }
+	| additive_expression '-' multiplicative_expression { $$ = $1 - $3; }
+	;
+
+expression
+	: additive_expression
+	;
+
+expression_statement
+    : expression ';' { printf("%ld\n", $1); }
+    ;
+
+translation_unit
+    : expression_statement
+    |    translation_unit expression_statement
+    ;
+
 %%
+extern FILE *yyin;
 
-void yyerror(const char *msg) {
-    nerrors++;
-    fprintf(stderr, "line %d: %s\n", yylineno, msg);
-}
+void yyerror(const char *s) { fprintf(stderr, "error: %s\n", s); }
 
 int main(int argc, char **argv) {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s <input file>\n", argv[0]);
-        return 1;
+    if (argc > 1) {
+        yyin = fopen(argv[1], "r");
+        if (!yyin) { perror(argv[1]); return 1; }
     }
-    yyin = fopen(argv[1], "r");
-    if (!yyin) {
-        perror(argv[1]);
-        return 1;
-    }
-
-    prog = ir_program_new();              /* empty IR program               */
-    int result = yyparse();               /* parse; each line gets lowered  */
-    fclose(yyin);
-
-    if (result == 0 && nerrors == 0)
-        codegen_x86(prog, stdout);        /* ← CHANGED: IR → x86-64 assembly */
-
-    ir_program_free(prog);
-    return (result || nerrors) ? 1 : 0;
+    return yyparse();
 }
