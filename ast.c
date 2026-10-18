@@ -11,7 +11,7 @@
 static Node* new_node(NodeType type) {
     Node* n = calloc(1, sizeof(Node));
     if (!n) {
-        perror("Allocation failed! Calloc row 14. File ast.c");
+        printf("Allocation failed! Calloc row %d. File %s", __LINE__, __FILE__);
         exit(1);
     }
     n->type = type;
@@ -59,4 +59,22 @@ void free_tree(Node *n) {
     free_tree(n->left);
     free_tree(n->right);
     free(n);
+}
+
+long eval(const Node *n) {
+    switch (n->type) {
+        case NODE_NUM: return n->value;
+        case NODE_NEG: return -eval(n->left);
+        case NODE_BINOP: {
+            long l = eval(n->left);
+            long r = eval(n->right);
+            switch (n->op) {
+                case '+': return l + r;
+                case '-': return l - r;
+                case '*': return l * r;
+                case '/': return l / r;
+            }
+        }
+    }
+    return 0;
 }

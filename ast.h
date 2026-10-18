@@ -27,5 +27,6 @@ Node* new_neg(Node* operand);
 
 void print_tree(const Node *n, FILE *out);
 void free_tree(Node* n);
+long eval(const Node *n); // testing
 
 #endif //CC_AST_H

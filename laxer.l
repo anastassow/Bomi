@@ -7,7 +7,7 @@ D			[0-9]
 %option noyywrap
 
 %%
-{D}+			{ yylval = strtol(yytext, NULL, 10); return(CONSTANT); }
+{D}+    { yylval.num = strtol(yytext, NULL, 10); return(CONSTANT); }
 
 ";"			{ return(';'); }
 "("			{ return('('); }
