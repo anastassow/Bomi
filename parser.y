@@ -1,5 +1,6 @@
 %code requires {
 #include "ast.h"
+#include "lower.h"
 }
 
 %code {
@@ -7,8 +8,10 @@
 int yylex(void);
 void yyerror(const char *s);
 
-Node* ast_root;
+IrProgram* p;
 }
+
+%destructor { free_tree($$); } <node>
 
 %union {
     long  num;
@@ -43,7 +46,13 @@ expression
 	;
 
 expression_statement
-    : expression ';' { ast_root = $1; print_tree(ast_root, stdout); printf("Answer: %ld", eval(ast_root)); printf("\n--------------------------------------------\n"); free_tree(ast_root); }
+    : expression ';' {
+	print_tree($1, stdout);
+     	printf("Answer: %ld", eval($1));
+     	printf("\n--------------------------------------------\n");
+     	ir_print_val(p, lower_expr(p, $1));
+     	free_tree($1);
+     }
     ;
 
 translation_unit
@@ -58,14 +67,13 @@ void yyerror(const char *s) { fprintf(stderr, "error: %s\n", s); }
 
 int main(int argc, char **argv) {
     if (argc > 1) {
-        yyin = fopen(argv[1], "r");
-        if (!yyin) { perror(argv[1]); return 1; }
-    }
+            yyin = fopen(argv[1], "r");
+            if (!yyin) { perror(argv[1]); return 1; }
+        }
+        p = ir_program_new();
+        int rc = yyparse();
+        if (rc == 0) ir_print(p, stdout);
+        ir_program_free(p);
 
-    if (yyparse() != 0)
-        return 1;
-
-    print_tree(ast_root, stdout);
-    free_tree(ast_root);
-    return 0;
+    return rc;
 }
