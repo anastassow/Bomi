@@ -1,6 +1,7 @@
 %code requires {
 #include "ast.h"
 #include "lower.h"
+#include "codegen.h"
 }
 
 %code {
@@ -73,6 +74,9 @@ int main(int argc, char **argv) {
         p = ir_program_new();
         int rc = yyparse();
         if (rc == 0) ir_print(p, stdout);
+
+	codegen_x86(p, stdout);
+
         ir_program_free(p);
 
     return rc;
