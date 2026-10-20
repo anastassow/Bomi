@@ -1,4 +1,6 @@
 %code requires {
+#include <stdio.h>
+#include <string.h>
 #include "ast.h"
 #include "lower.h"
 #include "codegen.h"
@@ -10,6 +12,7 @@ int yylex(void);
 void yyerror(const char *s);
 
 IrProgram* p;
+Node* root;
 }
 
 %destructor { free_tree($$); } <n>
@@ -32,6 +35,7 @@ IrProgram* p;
 %token CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE CONST VOLATILE VOID
 %token STRUCT UNION ENUM ELLIPSIS
 
+%type <n> statement statement_list compound_statement expression_statement
 %type <n> primary_expression postfix_expression unary_expression cast_expression
 %type <n> multiplicative_expression additive_expression shift_expression
 %type <n> relational_expression equality_expression and_expression
@@ -45,7 +49,7 @@ IrProgram* p;
 %%
 
 primary_expression
-	: IDENTIFIER
+	: IDENTIFIER { $$ = NULL; }
 	| CONSTANT { $$ = new_num($1); }
 	| STRING_LITERAL
 	| '(' expression ')' { $$ = $2; }
@@ -371,12 +375,12 @@ initializer_list
 	;
 
 statement
-	: labeled_statement
+	: labeled_statement 	{ $$ = NULL; }
 	| compound_statement
 	| expression_statement
-	| selection_statement
-	| iteration_statement
-	| jump_statement
+	| selection_statement	{ $$ = NULL; }
+	| iteration_statement	{ $$ = NULL; }
+	| jump_statement	{ $$ = NULL; }
 	;
 
 labeled_statement
@@ -386,10 +390,10 @@ labeled_statement
 	;
 
 compound_statement
-	: '{' '}'
-	| '{' statement_list '}'
-	| '{' declaration_list '}'
-	| '{' declaration_list statement_list '}'
+	: '{' '}'					{ $$ = NULL; }
+	| '{' statement_list '}'			{ $$ = $2; }
+	| '{' declaration_list '}'			{ $$ = NULL; }
+	| '{' declaration_list statement_list '}'	{ $$ = $3; }
 	;
 
 declaration_list
@@ -399,17 +403,12 @@ declaration_list
 
 statement_list
 	: statement
-	| statement_list statement
+	| statement_list statement	{ $$ = append($1, $2); }
 	;
 
 expression_statement
-	: ';'
-	| expression ';' {
-		print_tree($1, stdout);
-		printf("\n--------------------------------------------\n");
-		//ir_print_val(p, lower_expr(p, $1));
-		free_tree($1);
-	      }
+	: ';'			{ $$ = NULL; }
+	| expression ';'	{ $$ = $1; }
 	;
 
 selection_statement
@@ -445,7 +444,7 @@ external_declaration
 
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
-	| declaration_specifiers declarator compound_statement
+	| declaration_specifiers declarator compound_statement	 { root = new_func(strdup("main"), $3); }
 	| declarator declaration_list compound_statement
 	| declarator compound_statement
 	;
@@ -465,6 +464,9 @@ int main(int argc, char **argv) {
         // if (rc == 0) ir_print(p, stdout);
 
 	// codegen_x86(p, stdout);
+
+	print_tree(root, stdout);
+        free_tree(root);
 
         ir_program_free(p);
 
