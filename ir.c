@@ -48,7 +48,7 @@ static Operand ir_emit(IrProgram *p, IrOp op, Operand a, Operand b) {
     return i->dst >= 0 ? ir_vreg(i->dst) : ir_none();
 }
 Operand ir_binop(IrProgram *p, IrOp op, Operand l, Operand r) {
-    assert(op == IR_ADD || op == IR_SUB || op == IR_MUL || op == IR_SDIV);
+    assert(op == IR_ADD || op == IR_SUB || op == IR_MUL || op == IR_SDIV || op == IR_MOD);
     assert(l.kind != OPD_NONE && r.kind != OPD_NONE);
     return ir_emit(p, op, l, r);
 }
@@ -80,6 +80,7 @@ static const char *op_name(IrOp op) {
         case IR_SUB:  return "sub";
         case IR_MUL:  return "mul";
         case IR_SDIV: return "sdiv";
+        case IR_MOD:  return "mod";
         default:      return "?";
     }
 }

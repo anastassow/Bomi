@@ -94,7 +94,7 @@ multiplicative_expression
 	: cast_expression
 	| multiplicative_expression '*' cast_expression { $$ = new_binop('*', $1, $3); }
 	| multiplicative_expression '/' cast_expression	{ $$ = new_binop('/', $1, $3); }
-	| multiplicative_expression '%' cast_expression
+	| multiplicative_expression '%' cast_expression { $$ = new_binop('%', $1, $3); }
 	;
 
 additive_expression
@@ -462,9 +462,9 @@ int main(int argc, char **argv) {
         }
         p = ir_program_new();
         int rc = yyparse();
-        if (rc == 0) ir_print(p, stdout);
+        // if (rc == 0) ir_print(p, stdout);
 
-	codegen_x86(p, stdout);
+	// codegen_x86(p, stdout);
 
         ir_program_free(p);
 

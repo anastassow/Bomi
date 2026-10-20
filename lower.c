@@ -12,6 +12,7 @@ static IrOp to_ir_op(char op) {
         case '-': return IR_SUB;
         case '*': return IR_MUL;
         case '/': return IR_SDIV;
+        case '%': return IR_MOD;
         default: ;
     }
     abort();
