@@ -406,7 +406,6 @@ expression_statement
 	: ';'
 	| expression ';' {
 		print_tree($1, stdout);
-		printf("Answer: %ld", eval($1));
 		printf("\n--------------------------------------------\n");
 		ir_print_val(p, lower_expr(p, $1));
 		free_tree($1);
