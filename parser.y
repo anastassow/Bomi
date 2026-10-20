@@ -92,15 +92,15 @@ cast_expression
 
 multiplicative_expression
 	: cast_expression
-	| multiplicative_expression '*' cast_expression { $$ = new_binop('*', $1, $3); }
-	| multiplicative_expression '/' cast_expression	{ $$ = new_binop('/', $1, $3); }
-	| multiplicative_expression '%' cast_expression { $$ = new_binop('%', $1, $3); }
+	| multiplicative_expression '*' cast_expression { $$ = new_binop(OP_MUL, $1, $3); }
+	| multiplicative_expression '/' cast_expression	{ $$ = new_binop(OP_DIV, $1, $3); }
+	| multiplicative_expression '%' cast_expression { $$ = new_binop(OP_MOD, $1, $3); }
 	;
 
 additive_expression
 	: multiplicative_expression
-	| additive_expression '+' multiplicative_expression { $$ = new_binop('+', $1, $3); }
-	| additive_expression '-' multiplicative_expression { $$ = new_binop('-', $1, $3); }
+	| additive_expression '+' multiplicative_expression { $$ = new_binop(OP_ADD, $1, $3); }
+	| additive_expression '-' multiplicative_expression { $$ = new_binop(OP_SUB, $1, $3); }
 	;
 
 shift_expression
@@ -125,17 +125,17 @@ equality_expression
 
 and_expression
 	: equality_expression
-	| and_expression '&' equality_expression
+	| and_expression '&' equality_expression { $$ = new_binop(OP_BAND, $1, $3); }
 	;
 
 exclusive_or_expression
 	: and_expression
-	| exclusive_or_expression '^' and_expression
+	| exclusive_or_expression '^' and_expression { $$ = new_binop(OP_BXOR, $1, $3); }
 	;
 
 inclusive_or_expression
 	: exclusive_or_expression
-	| inclusive_or_expression '|' exclusive_or_expression
+	| inclusive_or_expression '|' exclusive_or_expression { $$ = new_binop(OP_BOR, $1, $3); }
 	;
 
 logical_and_expression
@@ -407,7 +407,7 @@ expression_statement
 	| expression ';' {
 		print_tree($1, stdout);
 		printf("\n--------------------------------------------\n");
-		ir_print_val(p, lower_expr(p, $1));
+		//ir_print_val(p, lower_expr(p, $1));
 		free_tree($1);
 	      }
 	;

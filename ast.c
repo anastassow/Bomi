@@ -25,7 +25,7 @@ Node* new_num(long value) {
     return n;
 }
 
-Node* new_binop(char op, Node* left, Node* right) {
+Node* new_binop(Op op, Node* left, Node* right) {
     Node* n = new_node(NODE_BINOP);
     n->left = left;
     n->right = right;
