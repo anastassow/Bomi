@@ -8,6 +8,9 @@
 #include <stdlib.h>
 #include <sys/errno.h>
 
+/* name -> symbol (helpers for debugging clearance) */
+
+// list with reference name -> symbol (made for debug clearance)
 static const char* const OP_NAMES[] = {
     [OP_ADD] = "+",   [OP_SUB] = "-",   [OP_MUL] = "*",
     [OP_DIV] = "/",   [OP_MOD] = "%",
@@ -31,6 +34,8 @@ static const char* const OP_NAMES[] = {
 const char* op_name(Op op) {
     return OP_NAMES[op];
 }
+
+/* Functions for creating nodes */
 
 static Node* new_node(NodeType type) {
     Node* n = calloc(1, sizeof(Node));
@@ -65,13 +70,7 @@ Node* new_func(char* name, LinkedList* body) {
     return n;
 }
 
-// Node* append(Node* list, Node* item) {
-//     if (!list) return item;
-//     Node* t = list;
-//     while (t->next) t = t->next;
-//     t->next = item;
-//     return list;
-// }
+/* Functions for debug clearance for printing */
 
 static void print_rec(const Node *n, const char *prefix, int last, FILE *out);
 
@@ -113,6 +112,8 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
 
 
 void print_tree(const Node *n, FILE *out) { print_rec(n, "  ", 1, out); }
+
+/* Function for cleaning memory  */
 
 void free_tree(Node* n) {
     while (n) {

@@ -52,7 +52,3 @@ int test(){
 
 }
 
-int test1(){
-12 + 10;
-test();
-}
