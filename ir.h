@@ -14,7 +14,7 @@ typedef struct {
     union { int vreg; long imm; };
 } Operand;
 
-typedef enum { IR_ADD, IR_SUB, IR_MUL, IR_SDIV, IR_NEG, IR_PRINT } IrOp;
+typedef enum { IR_ADD, IR_SUB, IR_MUL, IR_SDIV, IR_NEG, IR_PRINT, IR_MOD} IrOp;
 
 typedef struct Instr{
     IrOp          op;
