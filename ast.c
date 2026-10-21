@@ -57,7 +57,7 @@ Node* new_binop(Op op, Node* left, Node* right) {
     return n;
 }
 
-Node* new_func(char* name, Node* body) {
+Node* new_func(char* name, LinkedList* body) {
     Node* n = new_node(NODE_FUNC);
     n->func.name = name;
     n->func.body = body;
@@ -65,13 +65,13 @@ Node* new_func(char* name, Node* body) {
     return n;
 }
 
-Node* append(Node* list, Node* item) {
-    if (!list) return item;
-    Node* t = list;
-    while (t->next) t = t->next;
-    t->next = item;
-    return list;
-}
+// Node* append(Node* list, Node* item) {
+//     if (!list) return item;
+//     Node* t = list;
+//     while (t->next) t = t->next;
+//     t->next = item;
+//     return list;
+// }
 
 static void print_rec(const Node *n, const char *prefix, int last, FILE *out);
 
@@ -106,7 +106,7 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
             print_rec(n->binop.r, child, 1, out);
             break;
         case NODE_FUNC:
-            print_list(n->func.body, child, out);
+            if (n->func.body) print_list(n->func.body->head, child, out);
             break;
     }
 }
@@ -127,7 +127,7 @@ void free_tree(Node* n) {
                 break;
             case NODE_FUNC:
                 free(n->func.name);
-                free_tree(n->func.body);
+                list_free(n->func.body);
                 break;
         }
 

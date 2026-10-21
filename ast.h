@@ -7,6 +7,8 @@
 
 #include <stdio.h>
 
+#include "data_structures/linkedList.h"
+
 typedef enum {
     /* arithmetic */
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_MOD,
@@ -41,9 +43,9 @@ typedef enum {
 
 typedef struct Node Node;
 
-typedef struct { long value; }                  NumNode;
-typedef struct { Op op; Node* l; Node* r; }     BinOpNode;
-typedef struct { char* name; Node* body; }      FuncNode;
+typedef struct { long value; }                          NumNode;
+typedef struct { Op op; Node* l; Node* r; }             BinOpNode;
+typedef struct { char* name; struct LinkedList* body; }        FuncNode;
 
 struct Node{
     NodeType type;
@@ -58,9 +60,9 @@ struct Node{
 Node* new_num(long value);
 Node* new_binop(Op op, Node* left, Node* right);
 Node* new_neg(Node* operand);
-Node* new_func(char* name, Node* body);
+Node* new_func(char* name, struct LinkedList* body);
 
-Node* append(Node* list, Node* item);
+// Node* append(Node* list, Node* item);
 
 void print_tree(const Node *n, FILE *out);
 void free_tree(Node* n);

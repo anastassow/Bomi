@@ -9,7 +9,7 @@ IS			(u|U|l|L)*
 
 %{
 #include <stdio.h>
-#include "y.tab.h"
+#include "cc.tab.h"
 
 void count(void);
 void comment(void);
@@ -52,7 +52,7 @@ int check_type(void);
 "volatile"		{ count(); return(VOLATILE); }
 "while"			{ count(); return(WHILE); }
 
-{L}({L}|{D})*		{ count(); return(check_type()); }
+{L}({L}|{D})*		{ count(); yylval.s = strdup(yytext); return(check_type()); }
 
 0[xX]{H}+{IS}?		{ yylval.ival = strtol(yytext, NULL, 0); count(); return(CONSTANT); }
 0{D}+{IS}?		{ yylval.ival = strtol(yytext, NULL, 10); count(); return(CONSTANT); }

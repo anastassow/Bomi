@@ -21,13 +21,16 @@ Node* root;
 	struct Node* n;
 	char* s;
 	long ival;
+	LinkedList* list;
 }
 
-%token IDENTIFIER STRING_LITERAL SIZEOF
 %token PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
 %token AND_OP OR_OP MUL_ASSIGN DIV_ASSIGN MOD_ASSIGN ADD_ASSIGN
 %token SUB_ASSIGN LEFT_ASSIGN RIGHT_ASSIGN AND_ASSIGN
 %token XOR_ASSIGN OR_ASSIGN TYPE_NAME
+
+%token <s> IDENTIFIER
+%token STRING_LITERAL SIZEOF
 
 %token <ival> CONSTANT
 
@@ -35,13 +38,15 @@ Node* root;
 %token CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE CONST VOLATILE VOID
 %token STRUCT UNION ENUM ELLIPSIS
 
-%type <n> statement statement_list compound_statement expression_statement
+%type <n> statement expression_statement
 %type <n> primary_expression postfix_expression unary_expression cast_expression
 %type <n> multiplicative_expression additive_expression shift_expression
 %type <n> relational_expression equality_expression and_expression
 %type <n> exclusive_or_expression inclusive_or_expression logical_and_expression
 %type <n> logical_or_expression conditional_expression assignment_expression
 %type <n> expression
+%type <s> declarator direct_declarator
+%type <list> statement_list compound_statement
 
 %token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
@@ -49,7 +54,7 @@ Node* root;
 %%
 
 primary_expression
-	: IDENTIFIER { $$ = NULL; }
+	: IDENTIFIER { free($1); $$ = NULL; }
 	| CONSTANT { $$ = new_num($1); }
 	| STRING_LITERAL
 	| '(' expression ')' { $$ = $2; }
@@ -292,18 +297,18 @@ type_qualifier
 	;
 
 declarator
-	: pointer direct_declarator
-	| direct_declarator
+	: pointer direct_declarator	{ $$ = $2; }
+	| direct_declarator		{ $$ = $1; }
 	;
 
 direct_declarator
-	: IDENTIFIER
-	| '(' declarator ')'
-	| direct_declarator '[' constant_expression ']'
-	| direct_declarator '[' ']'
-	| direct_declarator '(' parameter_type_list ')'
-	| direct_declarator '(' identifier_list ')'
-	| direct_declarator '(' ')'
+	: IDENTIFIER					{ $$ = $1; }
+	| '(' declarator ')'				{ $$ = $2; }
+	| direct_declarator '[' constant_expression ']'	{ $$ = $1; }
+	| direct_declarator '[' ']'			{ $$ = $1; }
+	| direct_declarator '(' parameter_type_list ')'	{ $$ = $1; }
+	| direct_declarator '(' identifier_list ')'	{ $$ = $1; }
+	| direct_declarator '(' ')' 			{ $$ = $1; }
 	;
 
 pointer
@@ -390,9 +395,9 @@ labeled_statement
 	;
 
 compound_statement
-	: '{' '}'					{ $$ = NULL; }
+	: '{' '}'					{ $$ = list_new(); }
 	| '{' statement_list '}'			{ $$ = $2; }
-	| '{' declaration_list '}'			{ $$ = NULL; }
+	| '{' declaration_list '}'			{ $$ = list_new(); }
 	| '{' declaration_list statement_list '}'	{ $$ = $3; }
 	;
 
@@ -402,8 +407,8 @@ declaration_list
 	;
 
 statement_list
-	: statement
-	| statement_list statement	{ $$ = append($1, $2); }
+	: statement			{ $$ = list_new(); list_push($$, $1); }
+	| statement_list statement	{ $$ = $1; list_push($$, $2); }
 	;
 
 expression_statement
@@ -444,7 +449,7 @@ external_declaration
 
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
-	| declaration_specifiers declarator compound_statement	 { root = new_func(strdup("main"), $3); }
+	| declaration_specifiers declarator compound_statement	 { root = new_func($2, $3); }
 	| declarator declaration_list compound_statement
 	| declarator compound_statement
 	;
