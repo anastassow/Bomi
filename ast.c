@@ -70,6 +70,13 @@ Node* new_func(char* name, LinkedList* body) {
     return n;
 }
 
+Node* new_program(LinkedList* program) {
+      Node* n = new_node(NODE_PROGRAM);
+      n->program.program = program;
+      return n;
+  }
+
+
 /* Functions for debug clearance for printing */
 
 static void print_rec(const Node *n, const char *prefix, int last, FILE *out);
@@ -92,6 +99,8 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
         case NODE_NEG:   fprintf(out, "neg\n");                         break;
         case NODE_BINOP: fprintf(out, "%s\n", op_name(n->binop.op));    break;
         case NODE_FUNC:  fprintf(out, "func %s\n", n->func.name);       break;
+        case NODE_PROGRAM: fprintf(out, "program\n");                   break;
+
     }
 
     char child[256];
@@ -106,6 +115,9 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
             break;
         case NODE_FUNC:
             if (n->func.body) print_list(n->func.body->head, child, out);
+            break;
+        case NODE_PROGRAM:
+            if (n->program.program) print_list(n->program.program->head, child, out);
             break;
     }
 }
@@ -129,6 +141,9 @@ void free_tree(Node* n) {
             case NODE_FUNC:
                 free(n->func.name);
                 list_free(n->func.body);
+                break;
+            case NODE_PROGRAM:
+                list_free(n->program.program);
                 break;
         }
 

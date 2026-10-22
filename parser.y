@@ -449,7 +449,7 @@ external_declaration
 
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
-	| declaration_specifiers declarator compound_statement	 { root = new_func($2, $3); }
+	| declaration_specifiers declarator compound_statement	 { list_push(root->program.program, new_func($2, $3)); }
 	| declarator declaration_list compound_statement
 	| declarator compound_statement
 	;
@@ -465,6 +465,7 @@ int main(int argc, char **argv) {
             if (!yyin) { perror(argv[1]); return 1; }
         }
         p = ir_program_new();
+		root = new_program(list_new());
         int rc = yyparse();
         // if (rc == 0) ir_print(p, stdout);
 
