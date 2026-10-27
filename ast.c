@@ -73,8 +73,16 @@ Node* new_func(char* name, LinkedList* body) {
 Node* new_program(LinkedList* program) {
       Node* n = new_node(NODE_PROGRAM);
       n->program.program = program;
+
       return n;
-  }
+}
+
+Node* new_return(Node* expr) {
+    Node* n = new_node(NODE_RETURN);
+    n->ret.expr = expr;
+
+    return n;
+}
 
 
 /* Functions for debug clearance for printing */
@@ -95,11 +103,12 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
     }
 
     switch (n->type) {
-        case NODE_NUM:   fprintf(out, "%ld\n", n->num.value);           return;
-        case NODE_NEG:   fprintf(out, "neg\n");                         break;
-        case NODE_BINOP: fprintf(out, "%s\n", op_name(n->binop.op));    break;
-        case NODE_FUNC:  fprintf(out, "func %s\n", n->func.name);       break;
-        case NODE_PROGRAM: fprintf(out, "program\n");                   break;
+        case NODE_NUM:      fprintf(out, "%ld\n", n->num.value);            return;
+        case NODE_NEG:      fprintf(out, "neg\n");                          break;
+        case NODE_BINOP:    fprintf(out, "%s\n", op_name(n->binop.op));     break;
+        case NODE_FUNC:     fprintf(out, "func %s\n", n->func.name);        break;
+        case NODE_PROGRAM:  fprintf(out, "program\n");                      break;
+        case NODE_RETURN:   fprintf(out, "return\n");                       break;
 
     }
 
@@ -119,6 +128,8 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
         case NODE_PROGRAM:
             if (n->program.program) print_list(n->program.program->head, child, out);
             break;
+        case NODE_RETURN:
+            if (n->ret.expr) print_list(n->ret.expr, child, out);
     }
 }
 
@@ -144,6 +155,9 @@ void free_tree(Node* n) {
                 break;
             case NODE_PROGRAM:
                 list_free(n->program.program);
+                break;
+            case NODE_RETURN:
+                free_tree(n->ret.expr);
                 break;
         }
 

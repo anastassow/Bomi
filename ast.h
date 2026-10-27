@@ -40,6 +40,7 @@ typedef enum {
     NODE_NEG = 0x02,
     NODE_FUNC = 0x03,
     NODE_PROGRAM = 0x04,
+    NODE_RETURN = 0x05,
 } NodeType;
 
 typedef struct Node Node;
@@ -47,7 +48,8 @@ typedef struct Node Node;
 typedef struct { long value; }                                  NumNode;
 typedef struct { Op op; Node* l; Node* r; }                     BinOpNode;
 typedef struct { char* name; struct LinkedList* body; }         FuncNode;
-typedef struct { struct LinkedList* program; }                         ProgramNode;
+typedef struct { struct LinkedList* program; }                  ProgramNode;
+typedef struct { Node* expr; }                                  ReturnNode;
 
 struct Node{
     NodeType type;
@@ -57,6 +59,7 @@ struct Node{
         BinOpNode       binop;
         FuncNode        func;
         ProgramNode     program;
+        ReturnNode      ret;
     };
 };
 
@@ -65,6 +68,7 @@ Node* new_binop(Op op, Node* left, Node* right);
 Node* new_neg(Node* operand);
 Node* new_func(char* name, struct LinkedList* body);
 Node* new_program(struct LinkedList* program);
+Node* new_return(Node* expr);
 
 // for debug clearance
 void print_tree(const Node *n, FILE *out);

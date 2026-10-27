@@ -38,7 +38,7 @@ Node* root;
 %token CHAR SHORT INT LONG SIGNED UNSIGNED FLOAT DOUBLE CONST VOLATILE VOID
 %token STRUCT UNION ENUM ELLIPSIS
 
-%type <n> statement expression_statement
+%type <n> statement expression_statement jump_statement
 %type <n> primary_expression postfix_expression unary_expression cast_expression
 %type <n> multiplicative_expression additive_expression shift_expression
 %type <n> relational_expression equality_expression and_expression
@@ -385,7 +385,7 @@ statement
 	| expression_statement
 	| selection_statement	{ $$ = NULL; }
 	| iteration_statement	{ $$ = NULL; }
-	| jump_statement	{ $$ = NULL; }
+	| jump_statement
 	;
 
 labeled_statement
@@ -433,8 +433,8 @@ jump_statement
 	: GOTO IDENTIFIER ';'
 	| CONTINUE ';'
 	| BREAK ';'
-	| RETURN ';'
-	| RETURN expression ';'
+	| RETURN ';'			{ $$ = new_return(NULL); }
+	| RETURN expression ';'		{ $$ = new_return($2); }
 	;
 
 translation_unit
@@ -465,7 +465,7 @@ int main(int argc, char **argv) {
             if (!yyin) { perror(argv[1]); return 1; }
         }
         p = ir_program_new();
-		root = new_program(list_new());
+	root = new_program(list_new());
         int rc = yyparse();
         // if (rc == 0) ir_print(p, stdout);
 
