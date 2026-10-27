@@ -8,6 +8,6 @@
 #include "frontend/ast.h"
 #include "ir/ir.h"
 
-Operand lower_expr(IrProgram* p, const Node* n);
+IrProgram* lower_program(const Node* program_root);
 
 #endif //BOMI_LOWER_H
