@@ -2,7 +2,7 @@
 // Created by Dimitar Anastassov on 30.09.26.
 //
 
-#include "codegen.h"
+#include "backend/codegen.h"
 
 #include <stdlib.h>
 

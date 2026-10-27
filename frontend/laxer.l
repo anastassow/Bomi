@@ -9,7 +9,7 @@ IS			(u|U|l|L)*
 
 %{
 #include <stdio.h>
-#include "cc.tab.h"
+#include "bomi.tab.h"
 
 void count(void);
 void comment(void);

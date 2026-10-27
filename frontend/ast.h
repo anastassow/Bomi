@@ -2,8 +2,8 @@
 // Created by Dimitar Anastassov on 28.09.26.
 //
 
-#ifndef CC_AST_H
-#define CC_AST_H
+#ifndef BOMI_AST_H
+#define BOMI_AST_H
 
 #include <stdio.h>
 
@@ -74,4 +74,4 @@ Node* new_return(Node* expr);
 void print_tree(const Node *n, FILE *out);
 void free_tree(Node* n);
 
-#endif //CC_AST_H
+#endif //BOMI_AST_H

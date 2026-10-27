@@ -2,8 +2,8 @@
 // Created by Dimitar Anastassov on 21.10.26.
 //
 
-#include "linkedList.h"
-#include "ast.h"
+#include "data_structures/linkedList.h"
+#include "frontend/ast.h"
 
 #include <stdlib.h>
 

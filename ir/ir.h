@@ -2,8 +2,8 @@
 // Created by Dimitar Anastassov on 29.09.26.
 //
 
-#ifndef CC_IR_H
-#define CC_IR_H
+#ifndef BOMI_IR_H
+#define BOMI_IR_H
 
 #include <stdio.h>
 
@@ -41,4 +41,4 @@ void    ir_print_val(IrProgram *p, Operand v);
 
 void    ir_print(const IrProgram *p, FILE *out);
 
-#endif //CC_IR_H
+#endif //BOMI_IR_H

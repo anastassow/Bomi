@@ -2,7 +2,7 @@
 // // Created by Dimitar Anastassov on 29.09.26.
 // //
 //
-// #include "lower.h"
+// #include "ir/lower.h"
 //
 // #include <stdlib.h>
 //

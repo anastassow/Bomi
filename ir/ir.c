@@ -2,7 +2,7 @@
 // Created by Dimitar Anastassov on 29.09.26.
 //
 
-#include "ir.h"
+#include "ir/ir.h"
 
 #include <stdlib.h>
 

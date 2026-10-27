@@ -2,7 +2,7 @@
 // Created by Dimitar Anastassov on 28.09.26.
 //
 
-#include "ast.h"
+#include "frontend/ast.h"
 
 #include <stdio.h>
 #include <stdlib.h>
