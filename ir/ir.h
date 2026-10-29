@@ -55,6 +55,7 @@ IrBlock* ir_block_new(IrFunc* f, const char* label);
 
 Operand ir_imm(long value);
 Operand ir_none(void);
+Operand ir_vreg(int vreg_next);
 
 Operand ir_binop(IrFunc* f, IrBlock* b, IrOp op, Operand l, Operand r);
 Operand ir_ret(IrBlock* b, Operand v);

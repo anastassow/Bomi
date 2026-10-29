@@ -61,3 +61,29 @@ IrBlock* ir_block_new(IrFunc* f, const char* label) {
 
     return b;
 }
+
+Operand ir_imm(long value) {
+    Operand op = {
+        .kind = OPD_IMM,
+        .imm = value
+    };
+
+    return op;
+}
+
+Operand ir_none(void) {
+    Operand op = {
+        .kind = OPD_NONE,
+    };
+
+    return op;
+}
+
+Operand ir_vreg(int vreg_next) {
+    Operand op = {
+        .kind = OPD_VREG,
+        .vreg = vreg_next
+    };
+
+    return op;
+}
