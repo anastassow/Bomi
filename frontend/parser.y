@@ -3,6 +3,7 @@
 #include <string.h>
 #include "frontend/ast.h"
 #include "ir/lower.h"
+#include "ir/ir.h"
 #include "backend/codegen.h"
 }
 
@@ -472,6 +473,10 @@ int main(int argc, char **argv) {
 	// codegen_x86(p, stdout);
 
 	print_tree(root, stdout);
+
+	p = lower_program(root);
+	ir_print(p, stdout);
+
         free_tree(root);
 
         ir_program_free(p);

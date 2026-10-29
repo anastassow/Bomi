@@ -26,7 +26,7 @@ typedef enum {
 
 typedef struct IrInstr {
     IrOp            op;
-    int             dst; // destination for exmaple -> %v1 = add i64 %v0, %v1 %v1 is the dest
+    int             dst; // destination for exmaple -> %v1 = add i64 %v0, %v1, %v1 is the dest
     Operand         a, b;
     struct IrInstr* next;
 } IrInstr;
@@ -58,7 +58,7 @@ Operand ir_none(void);
 Operand ir_vreg(int vreg_next);
 
 Operand ir_binop(IrFunc* f, IrBlock* b, IrOp op, Operand l, Operand r);
-Operand ir_ret(IrBlock* b, Operand v);
+void ir_ret(IrBlock* b, Operand v);
 
 void ir_print(const IrProgram* p, FILE* out);
 
