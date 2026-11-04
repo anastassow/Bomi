@@ -3,15 +3,27 @@
 
 #include <stdlib.h>
 
+static IrType lower_type(TypeKind t) {
+    switch (t) {
+        case TYPE_INT: return IR_I32;
+        default:
+            fprintf(stderr, "Unsupported type: %d\n", t);
+            exit(EXIT_FAILURE);
+    }
+}
+
 static void lower_function(LoweringContext* ctx, const Node* node) {
     if (!node || node->type != NODE_FUNC) {
         printf("Expected NODE_FUNC\n");
         exit(1);
     }
 
+    IrType ret_type = lower_type(node->func.return_type);
+
     ctx->current_func = ir_func_new(
         ctx->program,
-        node->func.name
+        node->func.name,
+        ret_type
     );
 
     ctx->current_block = ir_block_new(
@@ -24,8 +36,15 @@ static void lower_function(LoweringContext* ctx, const Node* node) {
              stmt;
              stmt = stmt->next) {
 
+            if (ir_block_terminated(ctx->current_block)) break;
+
             lower_statement(ctx, stmt);
              }
+    }
+    
+    if (!ir_block_terminated(ctx->current_block)) {
+        ir_ret(ctx->current_block,
+               ret_type == IR_VOID ? ir_none() : ir_imm(0));
     }
 }
 

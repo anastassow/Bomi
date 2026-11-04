@@ -7,6 +7,9 @@
 
 #include <stdio.h>
 
+/* IR types (kept separate from the AST's TypeKind) */
+typedef enum { IR_VOID, IR_I32 } IrType;
+
 typedef enum { OPD_NONE, OPD_IMM, OPD_VREG } OpdKind;
 
 typedef struct {
@@ -39,6 +42,7 @@ typedef struct IrBlock {
 
 typedef struct IrFunc {
     char*           name;
+    IrType          ret_type;
     IrBlock*        head, *tail;
     int             next_vreg;
     int             next_label;   /* for unique block names */
@@ -50,8 +54,9 @@ typedef struct {
 } IrProgram;
 
 IrProgram* ir_program_new(void);
-IrFunc* ir_func_new(IrProgram* p, const char* name);
+IrFunc* ir_func_new(IrProgram* p, const char* name, IrType ret_type);
 IrBlock* ir_block_new(IrFunc* f, const char* label);
+int ir_block_terminated(const IrBlock* b);
 
 Operand ir_imm(long value);
 Operand ir_none(void);

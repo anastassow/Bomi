@@ -467,16 +467,17 @@ int main(int argc, char **argv) {
             yyin = fopen(argv[1], "r");
             if (!yyin) { perror(argv[1]); return 1; }
         }
-        p = ir_program_new();
 	root = new_program(list_new());
         int rc = yyparse();
-        // if (rc == 0) ir_print(p, stdout);
+        if (rc != 0) { free_tree(root); return rc; }
 
 	// codegen_x86(p, stdout);
 
-	print_tree(root, stdout);
+	/* AST goes to stderr so stdout holds only valid LLVM IR */
+	print_tree(root, stderr);
 
 	p = lower_program(root);
+
 	ir_print(p, stdout);
 
         free_tree(root);
