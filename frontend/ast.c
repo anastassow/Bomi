@@ -35,6 +35,15 @@ const char* op_name(Op op) {
     return OP_NAMES[op];
 }
 
+// list with reference type -> name (made for debug clearance)
+static const char* const TYPE_NAMES[] = {
+    [TYPE_INT] = "int",
+};
+
+const char* type_name(TypeKind t) {
+    return TYPE_NAMES[t];
+}
+
 /* Functions for creating nodes */
 
 static Node* new_node(NodeType type) {
@@ -62,10 +71,11 @@ Node* new_binop(Op op, Node* left, Node* right) {
     return n;
 }
 
-Node* new_func(char* name, LinkedList* body) {
+Node* new_func(char* name, LinkedList* body, TypeKind return_type) {
     Node* n = new_node(NODE_FUNC);
     n->func.name = name;
     n->func.body = body;
+    n->func.return_type = return_type;
 
     return n;
 }
@@ -106,7 +116,7 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
         case NODE_NUM:      fprintf(out, "%ld\n", n->num.value);            return;
         case NODE_NEG:      fprintf(out, "neg\n");                          break;
         case NODE_BINOP:    fprintf(out, "%s\n", op_name(n->binop.op));     break;
-        case NODE_FUNC:     fprintf(out, "func %s\n", n->func.name);        break;
+        case NODE_FUNC:     fprintf(out, "func (type)%s (name)%s\n", type_name(n->func.return_type), n->func.name); break;
         case NODE_PROGRAM:  fprintf(out, "program\n");                      break;
         case NODE_RETURN:   fprintf(out, "return\n");                       break;
 

@@ -33,6 +33,9 @@ typedef enum {
     OP_PRE_INC, OP_PRE_DEC, OP_POST_INC, OP_POST_DEC, OP_SIZEOF,
 } Op;
 
+typedef enum {
+    TYPE_INT
+} TypeKind;
 
 typedef enum {
     NODE_NUM = 0x00,
@@ -45,11 +48,11 @@ typedef enum {
 
 typedef struct Node Node;
 
-typedef struct { long value; }                                  NumNode;
-typedef struct { Op op; Node* l; Node* r; }                     BinOpNode;
-typedef struct { char* name; struct LinkedList* body; }         FuncNode;
-typedef struct { struct LinkedList* program; }                  ProgramNode;
-typedef struct { Node* expr; }                                  ReturnNode;
+typedef struct { long value; }                                                          NumNode;
+typedef struct { Op op; Node* l; Node* r; }                                             BinOpNode;
+typedef struct { char* name; struct LinkedList* body; TypeKind return_type;}            FuncNode;
+typedef struct { struct LinkedList* program; }                                          ProgramNode;
+typedef struct { Node* expr; }                                                          ReturnNode;
 
 struct Node{
     NodeType type;
@@ -66,7 +69,7 @@ struct Node{
 Node* new_num(long value);
 Node* new_binop(Op op, Node* left, Node* right);
 Node* new_neg(Node* operand);
-Node* new_func(char* name, struct LinkedList* body);
+Node* new_func(char* name, struct LinkedList* body, TypeKind return_type);
 Node* new_program(struct LinkedList* program);
 Node* new_return(Node* expr);
 

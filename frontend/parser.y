@@ -23,6 +23,7 @@ Node* root;
 	char* s;
 	long ival;
 	LinkedList* list;
+	TypeKind type;
 }
 
 %token PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
@@ -48,6 +49,7 @@ Node* root;
 %type <n> expression
 %type <s> declarator direct_declarator
 %type <list> statement_list compound_statement
+%type <type> type_specifier declaration_specifiers
 
 %token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
@@ -199,7 +201,7 @@ declaration
 declaration_specifiers
 	: storage_class_specifier
 	| storage_class_specifier declaration_specifiers
-	| type_specifier
+	| type_specifier { $$ = $1; }
 	| type_specifier declaration_specifiers
 	| type_qualifier
 	| type_qualifier declaration_specifiers
@@ -227,7 +229,7 @@ type_specifier
 	: VOID
 	| CHAR
 	| SHORT
-	| INT
+	| INT { $$ = TYPE_INT; }
 	| LONG
 	| FLOAT
 	| DOUBLE
@@ -450,7 +452,7 @@ external_declaration
 
 function_definition
 	: declaration_specifiers declarator declaration_list compound_statement
-	| declaration_specifiers declarator compound_statement	 { list_push(root->program.program, new_func($2, $3)); }
+	| declaration_specifiers declarator compound_statement	 { list_push(root->program.program, new_func($2, $3, $1)); }
 	| declarator declaration_list compound_statement
 	| declarator compound_statement
 	;
