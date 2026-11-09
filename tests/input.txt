@@ -1,4 +1,5 @@
 int main()
 {
-  return 1*283/2345;
+    int something;
+    return 1*283/2345;
 }

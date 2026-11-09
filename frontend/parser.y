@@ -51,6 +51,9 @@ Node* root;
 %type <list> statement_list compound_statement
 %type <type> type_specifier declaration_specifiers
 
+%type <list> declaration_list
+%type <n> init_declarator declaration init_declarator_list
+
 %token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
 %start translation_unit
@@ -194,8 +197,8 @@ constant_expression
 	;
 
 declaration
-	: declaration_specifiers ';'
-	| declaration_specifiers init_declarator_list ';'
+	: declaration_specifiers ';' { $$ = NULL; }
+	| declaration_specifiers init_declarator_list ';' { $$ = $2; $$->decl.type = $1; }
 	;
 
 declaration_specifiers
@@ -208,13 +211,17 @@ declaration_specifiers
 	;
 
 init_declarator_list
-	: init_declarator
-	| init_declarator_list ',' init_declarator
+	: init_declarator	{ $$ = $1; }
+	| init_declarator_list ',' init_declarator {
+	      yyerror("multiple declarators not supported yet");
+	      free_tree($1); free_tree($3);
+	      YYERROR;
+	  }
 	;
 
 init_declarator
-	: declarator
-	| declarator '=' initializer
+	: declarator	{ $$ = new_decl(TYPE_INT, $1, NULL); }
+	| declarator '=' initializer	{ free($1); $$ = NULL; }
 	;
 
 storage_class_specifier
@@ -400,13 +407,13 @@ labeled_statement
 compound_statement
 	: '{' '}'					{ $$ = list_new(); }
 	| '{' statement_list '}'			{ $$ = $2; }
-	| '{' declaration_list '}'			{ $$ = list_new(); }
-	| '{' declaration_list statement_list '}'	{ $$ = $3; }
+	| '{' declaration_list '}'			{ $$ = $2; }
+	| '{' declaration_list statement_list '}'	{ $$ = $2; list_append($$, $3); }
 	;
 
 declaration_list
-	: declaration
-	| declaration_list declaration
+	: declaration			{ $$ = list_new(); if ($1) list_push($$, $1); }
+	| declaration_list declaration	{ $$ = $1;         if ($2) list_push($$, $2); }
 	;
 
 statement_list

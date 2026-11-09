@@ -94,6 +94,25 @@ Node* new_return(Node* expr) {
     return n;
 }
 
+Node* new_decl(TypeKind type, char* name, Node* init) {
+    Node* n = new_node(NODE_DECLARATION);
+    n->type = NODE_DECLARATION;
+    n->decl.type = type;
+    n->decl.name = name;
+    n->decl.init = init;
+
+    return n;
+}
+
+void list_append(struct LinkedList* dst, struct LinkedList* src) {
+    if (!src) return;
+    if (src->head) {
+        if (dst->head) dst->tail->next = src->head;
+        else           dst->head = src->head;
+        dst->tail = src->tail;
+    }
+    free(src);
+}
 
 /* Functions for debug clearance for printing */
 
@@ -119,7 +138,9 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
         case NODE_FUNC:     fprintf(out, "func (type)%s (name)%s\n", type_name(n->func.return_type), n->func.name); break;
         case NODE_PROGRAM:  fprintf(out, "program\n");                      break;
         case NODE_RETURN:   fprintf(out, "return\n");                       break;
-
+        case NODE_DECLARATION:
+            fprintf(out, "decl (type)%s (name)%s\n", type_name(n->decl.type), n->decl.name);
+            break;
     }
 
     char child[256];
@@ -140,6 +161,10 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
             break;
         case NODE_RETURN:
             if (n->ret.expr) print_list(n->ret.expr, child, out);
+            break;
+        case NODE_DECLARATION:
+            if (n->decl.init) print_rec(n->decl.init, child, 1, out);
+            break;
     }
 }
 
@@ -168,6 +193,10 @@ void free_tree(Node* n) {
                 break;
             case NODE_RETURN:
                 free_tree(n->ret.expr);
+                break;
+            case NODE_DECLARATION:
+                free(n->decl.name);
+                free_tree(n->decl.init);
                 break;
         }
 

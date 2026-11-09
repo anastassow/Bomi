@@ -44,6 +44,7 @@ typedef enum {
     NODE_FUNC = 0x03,
     NODE_PROGRAM = 0x04,
     NODE_RETURN = 0x05,
+    NODE_DECLARATION = 0x06
 } NodeType;
 
 typedef struct Node Node;
@@ -53,6 +54,7 @@ typedef struct { Op op; Node* l; Node* r; }                                     
 typedef struct { char* name; struct LinkedList* body; TypeKind return_type;}            FuncNode;
 typedef struct { struct LinkedList* program; }                                          ProgramNode;
 typedef struct { Node* expr; }                                                          ReturnNode;
+typedef struct { TypeKind type; char* name; Node* init; }                               DeclNode;
 
 struct Node{
     NodeType type;
@@ -63,6 +65,7 @@ struct Node{
         FuncNode        func;
         ProgramNode     program;
         ReturnNode      ret;
+        DeclNode        decl;
     };
 };
 
@@ -72,6 +75,8 @@ Node* new_neg(Node* operand);
 Node* new_func(char* name, struct LinkedList* body, TypeKind return_type);
 Node* new_program(struct LinkedList* program);
 Node* new_return(Node* expr);
+Node* new_decl(TypeKind type, char* name, Node* init);
+void list_append(struct LinkedList* dst, struct LinkedList* src);
 
 // for debug clearance
 void print_tree(const Node *n, FILE *out);
