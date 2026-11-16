@@ -114,6 +114,22 @@ void list_append(struct LinkedList* dst, struct LinkedList* src) {
     free(src);
 }
 
+Node* new_var(char* name) {
+    Node* n = new_node(NODE_VAR);
+    n->var.name = name;
+
+    return n;
+}
+
+Node* new_assign(Op op, Node* target , Node* value) {
+    Node* n = new_node(NODE_ASSIGN);
+    n->assign.target = target;
+    n->assign.op = op;
+    n->assign.value = value;
+
+    return n;
+}
+
 /* Functions for debug clearance for printing */
 
 static void print_rec(const Node *n, const char *prefix, int last, FILE *out);
@@ -141,6 +157,13 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
         case NODE_DECLARATION:
             fprintf(out, "decl (type)%s (name)%s\n", type_name(n->decl.type), n->decl.name);
             break;
+        case NODE_VAR:
+            fprintf(out, "var %s\n", n->var.name);
+            return;
+        case NODE_ASSIGN:
+            fprintf(out, "assign %s=\n",
+                    n->assign.op == OP_ASSIGN ? "" : op_name(n->assign.op));
+            break;
     }
 
     char child[256];
@@ -164,6 +187,12 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
             break;
         case NODE_DECLARATION:
             if (n->decl.init) print_rec(n->decl.init, child, 1, out);
+            break;
+        case NODE_ASSIGN:
+            print_rec(n->assign.target, child, 0, out);
+            print_rec(n->assign.value,  child, 1, out);
+            break;
+        default:
             break;
     }
 }
@@ -197,6 +226,13 @@ void free_tree(Node* n) {
             case NODE_DECLARATION:
                 free(n->decl.name);
                 free_tree(n->decl.init);
+                break;
+            case NODE_VAR:
+                free(n->var.name);
+                break;
+            case NODE_ASSIGN:
+                free_tree(n->assign.target);
+                free_tree(n->assign.value);
                 break;
         }
 
