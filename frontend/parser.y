@@ -24,6 +24,7 @@ Node* root;
 	long ival;
 	LinkedList* list;
 	TypeKind type;
+	Op op;
 }
 
 %token PTR_OP INC_OP DEC_OP LEFT_OP RIGHT_OP LE_OP GE_OP EQ_OP NE_OP
@@ -52,7 +53,8 @@ Node* root;
 %type <type> type_specifier declaration_specifiers
 
 %type <list> declaration_list
-%type <n> init_declarator declaration init_declarator_list
+%type <n> init_declarator declaration init_declarator_list initializer
+%type <op> assignment_operator
 
 %token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
@@ -60,7 +62,7 @@ Node* root;
 %%
 
 primary_expression
-	: IDENTIFIER { free($1); $$ = NULL; }
+	: IDENTIFIER { $$ = new_var($1); }
 	| CONSTANT { $$ = new_num($1); }
 	| STRING_LITERAL
 	| '(' expression ')' { $$ = $2; }
@@ -170,21 +172,28 @@ conditional_expression
 
 assignment_expression
 	: conditional_expression
-	| unary_expression assignment_operator assignment_expression
+	| unary_expression assignment_operator assignment_expression {
+	      if (!$1 || $1->type != NODE_VAR) {
+		  yyerror("lvalue required as left operand of assignment");
+		  free_tree($1); free_tree($3);
+		  YYERROR;
+	      }
+	      $$ = new_assign($2, $1, $3);
+	  }
 	;
 
 assignment_operator
-	: '='
-	| MUL_ASSIGN
-	| DIV_ASSIGN
-	| MOD_ASSIGN
-	| ADD_ASSIGN
-	| SUB_ASSIGN
-	| LEFT_ASSIGN
-	| RIGHT_ASSIGN
-	| AND_ASSIGN
-	| XOR_ASSIGN
-	| OR_ASSIGN
+	: '='		{ $$ = OP_ASSIGN; }
+	| MUL_ASSIGN	{ $$ = OP_MUL; }
+	| DIV_ASSIGN	{ $$ = OP_DIV; }
+	| MOD_ASSIGN	{ $$ = OP_MOD; }
+	| ADD_ASSIGN	{ $$ = OP_ADD; }
+	| SUB_ASSIGN	{ $$ = OP_SUB; }
+	| LEFT_ASSIGN	{ $$ = OP_SHL; }
+	| RIGHT_ASSIGN	{ $$ = OP_SHR; }
+	| AND_ASSIGN	{ $$ = OP_BAND; }
+	| XOR_ASSIGN	{ $$ = OP_BXOR; }
+	| OR_ASSIGN	{ $$ = OP_BOR; }
 	;
 
 expression
@@ -221,7 +230,7 @@ init_declarator_list
 
 init_declarator
 	: declarator	{ $$ = new_decl(TYPE_INT, $1, NULL); }
-	| declarator '=' initializer	{ free($1); $$ = NULL; }
+	| declarator '=' initializer	{ $$ = new_decl(TYPE_INT, $1, $3); }
 	;
 
 storage_class_specifier
@@ -379,7 +388,7 @@ direct_abstract_declarator
 	;
 
 initializer
-	: assignment_expression
+	: assignment_expression { $$ = $1; }
 	| '{' initializer_list '}'
 	| '{' initializer_list ',' '}'
 	;
