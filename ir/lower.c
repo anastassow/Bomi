@@ -1,6 +1,7 @@
 #include "ir.h"
 #include "lower.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -224,6 +225,11 @@ static Operand lower_num(LoweringContext* ctx, const Node* node) {
 
     if (!node || node->type != NODE_NUM) {
         printf("Expected NODE_NUM\n");
+        exit(1);
+    }
+
+    if (node->num.value > INT32_MAX || node->num.value < INT32_MIN) {
+        printf("Integer constant %ld does not fit in an int\n", node->num.value);
         exit(1);
     }
 
