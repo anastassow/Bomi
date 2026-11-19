@@ -93,12 +93,9 @@ Operand ir_vreg(int vreg_next) {
     return op;
 }
 
-Operand ir_binop(IrFunc* f, IrBlock* b, IrOp op, Operand l, Operand r) {
-    if (!f || !b) {
-        printf("Invalid function or block\n");
-        exit(1);
-    }
-
+/* Allocates an instruction with its tag, type and dst set, and appends it to b.
+ * The caller fills in the union member that matches op. */
+static IrInstr* ir_instr_append(IrBlock* b, IrOp op, IrType type, int dst) {
     IrInstr* instr = calloc(1, sizeof(IrInstr));
     if (!instr) {
         printf("Calloc failed on line: %d in file: %s", __LINE__, __FILE__);
@@ -106,9 +103,8 @@ Operand ir_binop(IrFunc* f, IrBlock* b, IrOp op, Operand l, Operand r) {
     }
 
     instr->op = op;
-    instr->dst = f->next_vreg++;
-    instr->a = l;
-    instr->b = r;
+    instr->type = type;
+    instr->dst = dst;
 
     if (!b->head) {
         b->head = instr;
@@ -117,6 +113,24 @@ Operand ir_binop(IrFunc* f, IrBlock* b, IrOp op, Operand l, Operand r) {
     }
 
     b->tail = instr;
+
+    return instr;
+}
+
+Operand ir_binop(IrFunc* f, IrBlock* b, IrOp op, Operand l, Operand r) {
+    if (!f || !b) {
+        printf("Invalid function or block\n");
+        exit(1);
+    }
+
+    if (op < IR_ADD || op > IR_SHR) {
+        printf("ir_binop: op %d is not a binary operation\n", op);
+        exit(1);
+    }
+
+    IrInstr* instr = ir_instr_append(b, op, IR_I32, f->next_vreg++);
+    instr->binop.lhs = l;
+    instr->binop.rhs = r;
 
     return ir_vreg(instr->dst);
 }
@@ -127,24 +141,10 @@ void ir_ret(IrBlock* b, Operand v) {
         exit(1);
     }
 
-    IrInstr* instr = calloc(1, sizeof(IrInstr));
-    if (!instr) {
-        printf("Calloc failed on lineL %d and file: %s", __LINE__, __FILE__);
-        exit(1);
-    }
+    IrType type = v.kind == OPD_NONE ? IR_VOID : IR_I32;
 
-    instr->op = IR_RET;
-    instr->dst = -1;
-    instr->a = v;
-    instr->b = ir_none();
-
-    if (!b->head) {
-        b->head = instr;
-    } else {
-        b->tail->next = instr;
-    }
-
-    b->tail = instr;
+    IrInstr* instr = ir_instr_append(b, IR_RET, type, -1);
+    instr->ret.value = v;
 }
 
 static const char* ir_op_to_string(IrOp op) {
@@ -202,25 +202,32 @@ void ir_print(const IrProgram* p, FILE* out) {
                  instr;
                  instr = instr->next) {
 
-                if (instr->op == IR_RET) {
-                    if (instr->a.kind == OPD_NONE) {
-                        fprintf(out, "  ret void");
-                    } else {
-                        fprintf(out, "  ret %s ", ret_ty);
-                        ir_print_operand(instr->a, out);
-                    }
-                } else {
-                    fprintf(out, "  %%v%d = %s i32 ",
-                            instr->dst,
-                            ir_op_to_string(instr->op));
+                const char* ty = ir_type_to_string(instr->type);
 
-                    ir_print_operand(instr->a, out);
-                    fprintf(out, ", ");
-                    ir_print_operand(instr->b, out);
+                switch (instr->op) {
+                    case IR_ADD: case IR_SUB: case IR_MUL: case IR_SDIV: case IR_SREM:
+                    case IR_AND: case IR_OR:  case IR_XOR: case IR_SHL:  case IR_SHR:
+                        fprintf(out, "  %%v%d = %s %s ",
+                                instr->dst,
+                                ir_op_to_string(instr->op),
+                                ty);
+                        ir_print_operand(instr->binop.lhs, out);
+                        fprintf(out, ", ");
+                        ir_print_operand(instr->binop.rhs, out);
+                        break;
+
+                    case IR_RET:
+                        if (instr->ret.value.kind == OPD_NONE) {
+                            fprintf(out, "  ret void");
+                        } else {
+                            fprintf(out, "  ret %s ", ty);
+                            ir_print_operand(instr->ret.value, out);
+                        }
+                        break;
                 }
 
                 fprintf(out, "\n");
-                 }
+            }
         }
 
         fprintf(out, "}\n\n");

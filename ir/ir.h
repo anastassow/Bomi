@@ -23,15 +23,22 @@ typedef enum {
     /* bitwise:     dst = a op b */
     IR_AND, IR_OR, IR_XOR, IR_SHL, IR_SHR,
     /* terminators: end a block, no dst */
-    IR_RET,          /* ret a        (a may be OPD_NONE) */
+    IR_RET,          /* ret value    (value may be OPD_NONE) */
     /* later: IR_JMP, IR_BR, IR_CMP, IR_CALL, IR_LOAD, IR_STORE */
 } IrOp;
 
+typedef struct { Operand lhs, rhs; }       IrBinopData;   /* IR_ADD ... IR_SHR */
+typedef struct { Operand value; }          IrRetData;     /* IR_RET */
+
 typedef struct IrInstr {
-    IrOp            op;
-    int             dst; // destination for exmaple -> %v1 = add i64 %v0, %v1, %v1 is the dest
-    Operand         a, b;
+    IrOp            op;        /* tag: which member of the union is valid */
+    IrType          type;
+    int             dst;       /* -1 if no result */
     struct IrInstr* next;
+    union {
+        IrBinopData  binop;
+        IrRetData    ret;
+    };
 } IrInstr;
 
 typedef struct IrBlock {
@@ -63,7 +70,7 @@ Operand ir_none(void);
 Operand ir_vreg(int vreg_next);
 
 Operand ir_binop(IrFunc* f, IrBlock* b, IrOp op, Operand l, Operand r);
-void ir_ret(IrBlock* b, Operand v);
+void    ir_ret(IrBlock* b, Operand v);
 
 void ir_print(const IrProgram* p, FILE* out);
 
