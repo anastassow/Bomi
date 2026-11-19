@@ -104,6 +104,13 @@ Node* new_decl(TypeKind type, char* name, Node* init) {
     return n;
 }
 
+Node* new_expr_stmt(Node* expr) {
+    Node* n = new_node(NODE_EXPR_STMT);
+    n->expr_stmt.expr = expr;
+
+    return n;
+}
+
 void list_append(struct LinkedList* dst, struct LinkedList* src) {
     if (!src) return;
     if (src->head) {
@@ -164,6 +171,9 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
             fprintf(out, "assign %s=\n",
                     n->assign.op == OP_ASSIGN ? "" : op_name(n->assign.op));
             break;
+        case NODE_EXPR_STMT:
+            fprintf(out, "expr_stmt\n");
+            break;
     }
 
     char child[256];
@@ -191,6 +201,9 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
         case NODE_ASSIGN:
             print_rec(n->assign.target, child, 0, out);
             print_rec(n->assign.value,  child, 1, out);
+            break;
+        case NODE_EXPR_STMT:
+            print_rec(n->expr_stmt.expr, child, 1, out);
             break;
         default:
             break;
@@ -233,6 +246,9 @@ void free_tree(Node* n) {
             case NODE_ASSIGN:
                 free_tree(n->assign.target);
                 free_tree(n->assign.value);
+                break;
+            case NODE_EXPR_STMT:
+                free_tree(n->expr_stmt.expr);
                 break;
         }
 

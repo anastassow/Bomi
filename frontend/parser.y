@@ -432,7 +432,7 @@ statement_list
 
 expression_statement
 	: ';'			{ $$ = NULL; }
-	| expression ';'	{ $$ = $1; }
+	| expression ';'	{ $$ = new_expr_stmt($1); }
 	;
 
 selection_statement
