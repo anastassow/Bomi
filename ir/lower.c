@@ -10,6 +10,7 @@ static void    lower_function(LoweringContext* ctx, const Node* node);
 
 /* statements */
 static void    lower_statement(LoweringContext* ctx, const Node* node);
+static void    lower_declaration(LoweringContext* ctx, const Node* node);
 static void    lower_return(LoweringContext* ctx, const Node* node);
 static void    lower_expr_stmt(LoweringContext* ctx, const Node* node);
 
@@ -92,6 +93,11 @@ static void lower_statement(LoweringContext* ctx, const Node* node) {
 
     switch (node->type) {
 
+        case NODE_DECLARATION: {
+            lower_declaration(ctx, node);
+            break;
+        }
+
         case NODE_RETURN: {
             lower_return(ctx, node);
             break;
@@ -105,6 +111,29 @@ static void lower_statement(LoweringContext* ctx, const Node* node) {
         default:
             printf("Unsupported statement type: %d\n", node->type);
             exit(1);
+    }
+}
+
+/* int x = init;  ->  %vN = alloca i32
+ *                    store i32 <init>, ptr %vN      (only if there is an init) */
+static void lower_declaration(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_DECLARATION) {
+        printf("Expected NODE_DECLARATION\n");
+        exit(1);
+    }
+
+    if (symbol_lookup(ctx, node->decl.name)) {
+        printf("Redeclaration of '%s'\n", node->decl.name);
+        exit(1);
+    }
+
+    Operand slot = ir_alloca(ctx->current_func, ctx->current_block);
+
+    symbol_add(ctx, node->decl.name, slot);
+
+    if (node->decl.init) {
+        Operand value = lower_expr(ctx, node->decl.init);
+        ir_store(ctx->current_block, value, slot);
     }
 }
 
