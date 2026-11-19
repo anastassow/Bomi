@@ -184,16 +184,16 @@ assignment_expression
 
 assignment_operator
 	: '='		{ $$ = OP_ASSIGN; }
-	| MUL_ASSIGN	{ $$ = OP_MUL; }
-	| DIV_ASSIGN	{ $$ = OP_DIV; }
-	| MOD_ASSIGN	{ $$ = OP_MOD; }
-	| ADD_ASSIGN	{ $$ = OP_ADD; }
-	| SUB_ASSIGN	{ $$ = OP_SUB; }
-	| LEFT_ASSIGN	{ $$ = OP_SHL; }
-	| RIGHT_ASSIGN	{ $$ = OP_SHR; }
-	| AND_ASSIGN	{ $$ = OP_BAND; }
-	| XOR_ASSIGN	{ $$ = OP_BXOR; }
-	| OR_ASSIGN	{ $$ = OP_BOR; }
+	| MUL_ASSIGN	{ $$ = OP_MUL_ASSIGN; }
+	| DIV_ASSIGN	{ $$ = OP_DIV_ASSIGN; }
+	| MOD_ASSIGN	{ $$ = OP_MOD_ASSIGN; }
+	| ADD_ASSIGN	{ $$ = OP_ADD_ASSIGN; }
+	| SUB_ASSIGN	{ $$ = OP_SUB_ASSIGN; }
+	| LEFT_ASSIGN	{ $$ = OP_SHL_ASSIGN; }
+	| RIGHT_ASSIGN	{ $$ = OP_SHR_ASSIGN; }
+	| AND_ASSIGN	{ $$ = OP_AND_ASSIGN; }
+	| XOR_ASSIGN	{ $$ = OP_XOR_ASSIGN; }
+	| OR_ASSIGN	{ $$ = OP_OR_ASSIGN; }
 	;
 
 expression
@@ -432,7 +432,7 @@ statement_list
 
 expression_statement
 	: ';'			{ $$ = NULL; }
-	| expression ';'	{ $$ = $1; }
+	| expression ';'	{ $$ = new_expr_stmt($1); }
 	;
 
 selection_statement
