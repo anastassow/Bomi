@@ -1,13 +1,54 @@
 #include "ir.h"
 #include "lower.h"
 
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
-static IrType lower_type(TypeKind t) {
-    switch (t) {
-        case TYPE_INT: return IR_I32;
+/* top level */
+static void    lower_global(LoweringContext* ctx, const Node* node);
+static void    lower_function(LoweringContext* ctx, const Node* node);
+
+/* statements */
+static void    lower_statement(LoweringContext* ctx, const Node* node);
+static void    lower_declaration(LoweringContext* ctx, const Node* node);
+static void    lower_return(LoweringContext* ctx, const Node* node);
+static void    lower_expr_stmt(LoweringContext* ctx, const Node* node);
+
+/* expressions */
+static Operand lower_expr(LoweringContext* ctx, const Node* node);
+static Operand lower_num(LoweringContext* ctx, const Node* node);
+static Operand lower_var(LoweringContext* ctx, const Node* node);
+static Operand lower_binop(LoweringContext* ctx, const Node* node);
+static Operand lower_assign(LoweringContext* ctx, const Node* node);
+
+/* helpers */
+static IrType  lower_type(TypeKind t);
+static IrOp    lower_operator(Op op);
+static Op      compound_to_binary(Op op);
+
+/* symbol table (locals of the current function) */
+static Symbol* symbol_lookup(const LoweringContext* ctx, const char* name);
+static void    symbol_add(LoweringContext* ctx, const char* name, Operand addr);
+static void    symbols_free(LoweringContext* ctx);
+
+
+/* top level implementation  */
+
+static void lower_global(LoweringContext* ctx, const Node* node ) {
+    if (!node) return;
+
+    switch (node->type) {
+        case NODE_FUNC:
+            lower_function(ctx, node);
+            break;
+
+            // Future AST nodes
+
         default:
-            fprintf(stderr, "Unsupported type: %d\n", t);
+            fprintf(stderr,
+                    "Unsupported global node type: %d\n",
+                    node->type);
             exit(EXIT_FAILURE);
     }
 }
@@ -33,40 +74,43 @@ static void lower_function(LoweringContext* ctx, const Node* node) {
 
     if (node->func.body) {
         for (const Node* stmt = node->func.body->head;
-             stmt;
-             stmt = stmt->next) {
+            stmt;
+            stmt = stmt->next) {
 
             if (ir_block_terminated(ctx->current_block)) break;
 
             lower_statement(ctx, stmt);
-             }
+            }
     }
-    
+
     if (!ir_block_terminated(ctx->current_block)) {
         ir_ret(ctx->current_block,
                ret_type == IR_VOID ? ir_none() : ir_imm(0));
     }
+
+    symbols_free(ctx);
 }
+
+/* statements implementation  */
 
 static void lower_statement(LoweringContext* ctx, const Node* node) {
 
-    Operand result;
-
     switch (node->type) {
-        case NODE_RETURN: {
-             result = node->ret.expr
-                ? lower_expr(ctx, node->ret.expr)
-                : ir_none();
 
-            ir_ret(ctx->current_block, result);
+        case NODE_DECLARATION: {
+            lower_declaration(ctx, node);
             break;
         }
 
-        // made binop and num for now JUST FOR TESTING
-        case NODE_BINOP:
-        case NODE_NUM:
-            (void)lower_expr(ctx, node);
+        case NODE_RETURN: {
+            lower_return(ctx, node);
             break;
+        }
+
+        case NODE_EXPR_STMT: {
+            lower_expr_stmt(ctx, node);
+            break;
+        }
 
         default:
             printf("Unsupported statement type: %d\n", node->type);
@@ -74,34 +118,207 @@ static void lower_statement(LoweringContext* ctx, const Node* node) {
     }
 }
 
+/* int x = init;  ->  %vN = alloca i32
+ *                    store i32 <init>, ptr %vN      (only if there is an init) */
+static void lower_declaration(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_DECLARATION) {
+        printf("Expected NODE_DECLARATION\n");
+        exit(1);
+    }
+
+    if (symbol_lookup(ctx, node->decl.name)) {
+        printf("Redeclaration of '%s'\n", node->decl.name);
+        exit(1);
+    }
+
+    Operand slot = ir_alloca(ctx->current_func, ctx->current_block);
+
+    symbol_add(ctx, node->decl.name, slot);
+
+    if (node->decl.init) {
+        Operand value = lower_expr(ctx, node->decl.init);
+        ir_store(ctx->current_block, value, slot);
+    }
+}
+
+/* return expr;  ->  ret i32 <expr>
+ * return;       ->  ret void
+ * for now only for int */
+static void lower_return(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_RETURN) {
+        printf("Expected NODE_RETURN\n");
+        exit(1);
+    }
+
+    IrFunc* f = ctx->current_func;
+
+    if (!node->ret.expr) {
+        if (f->ret_type != IR_VOID) {
+            printf("Function '%s' must return a value\n", f->name);
+            exit(1);
+        }
+
+        ir_ret(ctx->current_block, ir_none());
+        return;
+    }
+
+    if (f->ret_type == IR_VOID) {
+        printf("Void function '%s' cannot return a value\n", f->name);
+        exit(1);
+    }
+
+    Operand value = lower_expr(ctx, node->ret.expr);
+    ir_ret(ctx->current_block, value);
+}
+
+/* expr;  ->  lower expr for its side effects (e.g. x = x * 3;), drop the result */
+static void lower_expr_stmt(LoweringContext* ctx, const Node* node) {
+    if (!ctx || !ctx->current_func || !ctx->current_block) {
+        printf("Expression statement outside of a function\n");
+        exit(1);
+    }
+
+    if (!node || node->type != NODE_EXPR_STMT) {
+        printf("Expected NODE_EXPR_STMT\n");
+        exit(1);
+    }
+
+    if (!node->expr_stmt.expr) return;
+
+    (void)lower_expr(ctx, node->expr_stmt.expr);
+}
+
+/* expressions implementation */
+
 static Operand lower_expr(LoweringContext* ctx, const Node* node) {
+    if (!ctx || !ctx->current_func || !ctx->current_block) {
+        fprintf(stderr, "Expression outside of a function\n");
+        exit(EXIT_FAILURE);
+    }
+
     if (!node) {
         fprintf(stderr, "NULL expression\n");
         exit(EXIT_FAILURE);
     }
 
+    if (node->type == NODE_EXPR_STMT) {
+        node = node->expr_stmt.expr;
+
+        if (!node) return ir_none();
+    }
+
     switch (node->type) {
-        case NODE_NUM:
-            return ir_imm(node->num.value);
-
-        case NODE_BINOP: {
-            Operand left = lower_expr(ctx, node->binop.l);
-            Operand right = lower_expr(ctx, node->binop.r);
-
-            IrOp op = lower_operator(node->binop.op);
-
-            return ir_binop(
-                ctx->current_func,
-                ctx->current_block,
-                op,
-                left,
-                right
-            );
-        }
+        case NODE_NUM:      return lower_num(ctx, node);
+        case NODE_BINOP:    return lower_binop(ctx, node);
+        case NODE_VAR:      return lower_var(ctx, node);
+        case NODE_ASSIGN:   return lower_assign(ctx, node);
 
         default:
             printf("Unsupported expression type: %d\n", node->type);
             exit(1);
+    }
+}
+
+/* 42  ->  the constant itself, no instruction needed */
+static Operand lower_num(LoweringContext* ctx, const Node* node) {
+    (void)ctx;
+
+    if (!node || node->type != NODE_NUM) {
+        printf("Expected NODE_NUM\n");
+        exit(1);
+    }
+
+    if (node->num.value > INT32_MAX || node->num.value < INT32_MIN) {
+        printf("Integer constant %ld does not fit in an int\n", node->num.value);
+        exit(1);
+    }
+
+    return ir_imm(node->num.value);
+}
+
+/* x  ->  %vN = load i32, ptr <slot of x> */
+static Operand lower_var(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_VAR) {
+        printf("Expected NODE_VAR\n");
+        exit(1);
+    }
+
+    const Symbol* sym = symbol_lookup(ctx, node->var.name);
+    if (!sym) {
+        printf("Use of undeclared variable '%s'\n", node->var.name);
+        exit(1);
+    }
+
+    return ir_load(ctx->current_func, ctx->current_block, sym->addr);
+}
+
+/* l op r  ->  lower l, lower r, then %vN = op i32 l, r */
+static Operand lower_binop(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_BINOP) {
+        printf("Expected NODE_BINOP\n");
+        exit(1);
+    }
+
+    if (!node->binop.l || !node->binop.r) {
+        printf("Binary operation is missing an operand\n");
+        exit(1);
+    }
+
+    IrOp op = lower_operator(node->binop.op);
+
+    Operand l = lower_expr(ctx, node->binop.l);
+    Operand r = lower_expr(ctx, node->binop.r);
+
+    return ir_binop(ctx->current_func, ctx->current_block, op, l, r);
+}
+
+/* x = v   ->  store i32 v, ptr <slot of x>
+ * x op= v ->  %a = load x;  %b = op %a, v;  store %b, ptr <slot of x>
+ * assign.op is OP_ASSIGN for "=", or OP_ADD_ASSIGN, OP_SUB_ASSIGN, ... for "+=", "-=", ... */
+static Operand lower_assign(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_ASSIGN) {
+        printf("Expected NODE_ASSIGN\n");
+        exit(1);
+    }
+
+    const Node* target = node->assign.target;
+    if (!target || target->type != NODE_VAR) {
+        printf("Left side of an assignment must be a variable\n");
+        exit(1);
+    }
+
+    if (!node->assign.value) {
+        printf("Assignment to '%s' is missing a value\n", target->var.name);
+        exit(1);
+    }
+
+    const Symbol* sym = symbol_lookup(ctx, target->var.name);
+    if (!sym) {
+        printf("Assignment to undeclared variable '%s'\n", target->var.name);
+        exit(1);
+    }
+
+    Operand value = lower_expr(ctx, node->assign.value);
+
+    if (node->assign.op != OP_ASSIGN) {
+        IrOp op = lower_operator(compound_to_binary(node->assign.op));
+        Operand current = ir_load(ctx->current_func, ctx->current_block, sym->addr);
+        value = ir_binop(ctx->current_func, ctx->current_block, op, current, value);
+    }
+
+    ir_store(ctx->current_block, value, sym->addr);
+
+    return value;
+}
+
+/* helpers implementation */
+
+static IrType lower_type(TypeKind t) {
+    switch (t) {
+        case TYPE_INT: return IR_I32;
+        default:
+            fprintf(stderr, "Unsupported type: %d\n", t);
+            exit(EXIT_FAILURE);
     }
 }
 
@@ -125,22 +342,57 @@ static IrOp lower_operator(Op op) {
     }
 }
 
-static void lower_global(LoweringContext* ctx, const Node* node ) {
-    if (!node) return;
-
-    switch (node->type) {
-        case NODE_FUNC:
-            lower_function(ctx, node);
-            break;
-
-            // Future AST nodes
+/* x += v  is  x = x + v :  OP_ADD_ASSIGN -> OP_ADD, and so on */
+static Op compound_to_binary(Op op) {
+    switch (op) {
+        case OP_ADD_ASSIGN: return OP_ADD;
+        case OP_SUB_ASSIGN: return OP_SUB;
+        case OP_MUL_ASSIGN: return OP_MUL;
+        case OP_DIV_ASSIGN: return OP_DIV;
+        case OP_MOD_ASSIGN: return OP_MOD;
+        case OP_SHL_ASSIGN: return OP_SHL;
+        case OP_SHR_ASSIGN: return OP_SHR;
+        case OP_AND_ASSIGN: return OP_BAND;
+        case OP_XOR_ASSIGN: return OP_BXOR;
+        case OP_OR_ASSIGN:  return OP_BOR;
 
         default:
-            fprintf(stderr,
-                    "Unsupported global node type: %d\n",
-                    node->type);
-            exit(EXIT_FAILURE);
+            printf("Not a compound assignment operator: %d\n", op);
+            exit(1);
     }
+}
+
+static Symbol* symbol_lookup(const LoweringContext* ctx, const char* name) {
+    for (Symbol* s = ctx->locals; s; s = s->next) {
+        if (strcmp(s->name, name) == 0) return s;
+    }
+
+    return NULL;
+}
+
+static void symbol_add(LoweringContext* ctx, const char* name, Operand addr) {
+    Symbol* s = calloc(1, sizeof(Symbol));
+    if (!s) {
+        printf("Calloc failed on line: %d in file: %s", __LINE__, __FILE__);
+        exit(1);
+    }
+
+    s->name = name;
+    s->addr = addr;
+    s->next = ctx->locals;
+    ctx->locals = s;
+}
+
+static void symbols_free(LoweringContext* ctx) {
+    Symbol* s = ctx->locals;
+
+    while (s) {
+        Symbol* next = s->next;
+        free(s);
+        s = next;
+    }
+
+    ctx->locals = NULL;
 }
 
 IrProgram* lower_program(const Node* root) {
@@ -152,7 +404,8 @@ IrProgram* lower_program(const Node* root) {
     LoweringContext ctx = {
         .program = ir_program_new(),
         .current_func = NULL,
-        .current_block = NULL
+        .current_block = NULL,
+        .locals = NULL
     };
 
     if (root->program.program) {

@@ -3,9 +3,8 @@ int main()
     return 1*283/2345;
 }
 
-
-int main() {
-    int x = 2;
+int func() {
+    int x = (2 * 10) / 3;
     x = x * 3;
 
     x += 1;
