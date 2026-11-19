@@ -2,6 +2,7 @@
 #include "lower.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 /* top level */
 static void    lower_global(LoweringContext* ctx, const Node* node);
@@ -20,6 +21,11 @@ static Operand lower_binop(LoweringContext* ctx, const Node* node);
 /* helpers */
 static IrType  lower_type(TypeKind t);
 static IrOp    lower_operator(Op op);
+
+/* symbol table (locals of the current function) */
+static Symbol* symbol_lookup(const LoweringContext* ctx, const char* name);
+static void    symbol_add(LoweringContext* ctx, const char* name, Operand addr);
+static void    symbols_free(LoweringContext* ctx);
 
 
 /* top level implementation  */
@@ -77,6 +83,7 @@ static void lower_function(LoweringContext* ctx, const Node* node) {
                ret_type == IR_VOID ? ir_none() : ir_imm(0));
     }
 
+    symbols_free(ctx);
 }
 
 /* statements implementation  */
@@ -240,6 +247,39 @@ static IrOp lower_operator(Op op) {
     }
 }
 
+static Symbol* symbol_lookup(const LoweringContext* ctx, const char* name) {
+    for (Symbol* s = ctx->locals; s; s = s->next) {
+        if (strcmp(s->name, name) == 0) return s;
+    }
+
+    return NULL;
+}
+
+static void symbol_add(LoweringContext* ctx, const char* name, Operand addr) {
+    Symbol* s = calloc(1, sizeof(Symbol));
+    if (!s) {
+        printf("Calloc failed on line: %d in file: %s", __LINE__, __FILE__);
+        exit(1);
+    }
+
+    s->name = name;
+    s->addr = addr;
+    s->next = ctx->locals;
+    ctx->locals = s;
+}
+
+static void symbols_free(LoweringContext* ctx) {
+    Symbol* s = ctx->locals;
+
+    while (s) {
+        Symbol* next = s->next;
+        free(s);
+        s = next;
+    }
+
+    ctx->locals = NULL;
+}
+
 IrProgram* lower_program(const Node* root) {
     if (!root || root->type != NODE_PROGRAM) {
         printf("Expected NODE_PROGRAM\n");
@@ -249,7 +289,8 @@ IrProgram* lower_program(const Node* root) {
     LoweringContext ctx = {
         .program = ir_program_new(),
         .current_func = NULL,
-        .current_block = NULL
+        .current_block = NULL,
+        .locals = NULL
     };
 
     if (root->program.program) {
