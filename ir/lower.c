@@ -17,6 +17,7 @@ static void    lower_expr_stmt(LoweringContext* ctx, const Node* node);
 /* expressions */
 static Operand lower_expr(LoweringContext* ctx, const Node* node);
 static Operand lower_num(LoweringContext* ctx, const Node* node);
+static Operand lower_var(LoweringContext* ctx, const Node* node);
 static Operand lower_binop(LoweringContext* ctx, const Node* node);
 
 /* helpers */
@@ -206,6 +207,7 @@ static Operand lower_expr(LoweringContext* ctx, const Node* node) {
     switch (node->type) {
         case NODE_NUM:      return lower_num(ctx, node);
         case NODE_BINOP:    return lower_binop(ctx, node);
+        case NODE_VAR:      return lower_var(ctx, node);
 
         default:
             printf("Unsupported expression type: %d\n", node->type);
@@ -223,6 +225,22 @@ static Operand lower_num(LoweringContext* ctx, const Node* node) {
     }
 
     return ir_imm(node->num.value);
+}
+
+/* x  ->  %vN = load i32, ptr <slot of x> */
+static Operand lower_var(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_VAR) {
+        printf("Expected NODE_VAR\n");
+        exit(1);
+    }
+
+    const Symbol* sym = symbol_lookup(ctx, node->var.name);
+    if (!sym) {
+        printf("Use of undeclared variable '%s'\n", node->var.name);
+        exit(1);
+    }
+
+    return ir_load(ctx->current_func, ctx->current_block, sym->addr);
 }
 
 /* l op r  ->  lower l, lower r, then %vN = op i32 l, r */
