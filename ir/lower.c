@@ -110,9 +110,21 @@ static void lower_return(LoweringContext* ctx, const Node* node) {
         exit(1);
     }
 
+    IrFunc* f = ctx->current_func;
+
     if (!node->ret.expr) {
+        if (f->ret_type != IR_VOID) {
+            printf("Function '%s' must return a value\n", f->name);
+            exit(1);
+        }
+
         ir_ret(ctx->current_block, ir_none());
         return;
+    }
+
+    if (f->ret_type == IR_VOID) {
+        printf("Void function '%s' cannot return a value\n", f->name);
+        exit(1);
     }
 
     Operand value = lower_expr(ctx, node->ret.expr);
