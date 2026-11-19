@@ -153,12 +153,12 @@ static const char* ir_op_to_string(IrOp op) {
         case IR_SUB:  return "sub";
         case IR_MUL:  return "mul";
         case IR_SDIV: return "sdiv";
-        // case IR_SREM: return "srem";
+        case IR_SREM: return "srem";
         case IR_AND:  return "and";
         case IR_OR:   return "or";
         case IR_XOR:  return "xor";
-        // case IR_SHL:  return "shl";
-        // case IR_SHR:  return "ashr";
+        case IR_SHL:  return "shl";
+        case IR_SHR:  return "ashr";   /* signed int: arithmetic shift */
         case IR_RET:  return "ret";
         default:      return "unknown";
     }
