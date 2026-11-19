@@ -147,6 +147,59 @@ void ir_ret(IrBlock* b, Operand v) {
     instr->ret.value = v;
 }
 
+/* %vN = alloca i32  -> returns %vN, a pointer to a fresh stack slot */
+Operand ir_alloca(IrFunc* f, IrBlock* b) {
+    if (!f || !b) {
+        printf("Invalid function or block\n");
+        exit(1);
+    }
+
+    IrInstr* instr = ir_instr_append(b, IR_ALLOCA, IR_I32, f->next_vreg++);
+    instr->alloca.type = IR_I32;
+
+    return ir_vreg(instr->dst);
+}
+
+/* %vN = load i32, ptr addr  -> returns %vN, the value stored at addr */
+Operand ir_load(IrFunc* f, IrBlock* b, Operand addr) {
+    if (!f || !b) {
+        printf("Invalid function or block\n");
+        exit(1);
+    }
+
+    if (addr.kind != OPD_VREG) {
+        printf("ir_load: address must be a vreg from ir_alloca\n");
+        exit(1);
+    }
+
+    IrInstr* instr = ir_instr_append(b, IR_LOAD, IR_I32, f->next_vreg++);
+    instr->load.addr = addr;
+
+    return ir_vreg(instr->dst);
+}
+
+/* store i32 value, ptr addr  -> no result */
+void ir_store(IrBlock* b, Operand value, Operand addr) {
+    if (!b) {
+        printf("Invalid block\n");
+        exit(1);
+    }
+
+    if (value.kind == OPD_NONE) {
+        printf("ir_store: value is missing\n");
+        exit(1);
+    }
+
+    if (addr.kind != OPD_VREG) {
+        printf("ir_store: address must be a vreg from ir_alloca\n");
+        exit(1);
+    }
+
+    IrInstr* instr = ir_instr_append(b, IR_STORE, IR_I32, -1);
+    instr->store.value = value;
+    instr->store.addr = addr;
+}
+
 static const char* ir_op_to_string(IrOp op) {
     switch (op) {
         case IR_ADD:  return "add";
@@ -223,6 +276,24 @@ void ir_print(const IrProgram* p, FILE* out) {
                             fprintf(out, "  ret %s ", ty);
                             ir_print_operand(instr->ret.value, out);
                         }
+                        break;
+
+                    case IR_ALLOCA:
+                        fprintf(out, "  %%v%d = alloca %s",
+                                instr->dst,
+                                ir_type_to_string(instr->alloca.type));
+                        break;
+
+                    case IR_LOAD:
+                        fprintf(out, "  %%v%d = load %s, ptr ", instr->dst, ty);
+                        ir_print_operand(instr->load.addr, out);
+                        break;
+
+                    case IR_STORE:
+                        fprintf(out, "  store %s ", ty);
+                        ir_print_operand(instr->store.value, out);
+                        fprintf(out, ", ptr ");
+                        ir_print_operand(instr->store.addr, out);
                         break;
                 }
 
