@@ -168,8 +168,7 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
             fprintf(out, "var %s\n", n->var.name);
             return;
         case NODE_ASSIGN:
-            fprintf(out, "assign %s=\n",
-                    n->assign.op == OP_ASSIGN ? "" : op_name(n->assign.op));
+            fprintf(out, "assign %s\n", op_name(n->assign.op));
             break;
         case NODE_EXPR_STMT:
             fprintf(out, "expr_stmt\n");
