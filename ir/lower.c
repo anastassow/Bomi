@@ -19,10 +19,12 @@ static Operand lower_expr(LoweringContext* ctx, const Node* node);
 static Operand lower_num(LoweringContext* ctx, const Node* node);
 static Operand lower_var(LoweringContext* ctx, const Node* node);
 static Operand lower_binop(LoweringContext* ctx, const Node* node);
+static Operand lower_assign(LoweringContext* ctx, const Node* node);
 
 /* helpers */
 static IrType  lower_type(TypeKind t);
 static IrOp    lower_operator(Op op);
+static Op      compound_to_binary(Op op);
 
 /* symbol table (locals of the current function) */
 static Symbol* symbol_lookup(const LoweringContext* ctx, const char* name);
@@ -208,6 +210,7 @@ static Operand lower_expr(LoweringContext* ctx, const Node* node) {
         case NODE_NUM:      return lower_num(ctx, node);
         case NODE_BINOP:    return lower_binop(ctx, node);
         case NODE_VAR:      return lower_var(ctx, node);
+        case NODE_ASSIGN:   return lower_assign(ctx, node);
 
         default:
             printf("Unsupported expression type: %d\n", node->type);
@@ -263,6 +266,45 @@ static Operand lower_binop(LoweringContext* ctx, const Node* node) {
     return ir_binop(ctx->current_func, ctx->current_block, op, l, r);
 }
 
+/* x = v   ->  store i32 v, ptr <slot of x>
+ * x op= v ->  %a = load x;  %b = op %a, v;  store %b, ptr <slot of x>
+ * assign.op is OP_ASSIGN for "=", or OP_ADD_ASSIGN, OP_SUB_ASSIGN, ... for "+=", "-=", ... */
+static Operand lower_assign(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_ASSIGN) {
+        printf("Expected NODE_ASSIGN\n");
+        exit(1);
+    }
+
+    const Node* target = node->assign.target;
+    if (!target || target->type != NODE_VAR) {
+        printf("Left side of an assignment must be a variable\n");
+        exit(1);
+    }
+
+    if (!node->assign.value) {
+        printf("Assignment to '%s' is missing a value\n", target->var.name);
+        exit(1);
+    }
+
+    const Symbol* sym = symbol_lookup(ctx, target->var.name);
+    if (!sym) {
+        printf("Assignment to undeclared variable '%s'\n", target->var.name);
+        exit(1);
+    }
+
+    Operand value = lower_expr(ctx, node->assign.value);
+
+    if (node->assign.op != OP_ASSIGN) {
+        IrOp op = lower_operator(compound_to_binary(node->assign.op));
+        Operand current = ir_load(ctx->current_func, ctx->current_block, sym->addr);
+        value = ir_binop(ctx->current_func, ctx->current_block, op, current, value);
+    }
+
+    ir_store(ctx->current_block, value, sym->addr);
+
+    return value;
+}
+
 /* helpers implementation */
 
 static IrType lower_type(TypeKind t) {
@@ -290,6 +332,26 @@ static IrOp lower_operator(Op op) {
 
         default:
             printf("Unsupported operator: %d\n", op);
+            exit(1);
+    }
+}
+
+/* x += v  is  x = x + v :  OP_ADD_ASSIGN -> OP_ADD, and so on */
+static Op compound_to_binary(Op op) {
+    switch (op) {
+        case OP_ADD_ASSIGN: return OP_ADD;
+        case OP_SUB_ASSIGN: return OP_SUB;
+        case OP_MUL_ASSIGN: return OP_MUL;
+        case OP_DIV_ASSIGN: return OP_DIV;
+        case OP_MOD_ASSIGN: return OP_MOD;
+        case OP_SHL_ASSIGN: return OP_SHL;
+        case OP_SHR_ASSIGN: return OP_SHR;
+        case OP_AND_ASSIGN: return OP_BAND;
+        case OP_XOR_ASSIGN: return OP_BXOR;
+        case OP_OR_ASSIGN:  return OP_BOR;
+
+        default:
+            printf("Not a compound assignment operator: %d\n", op);
             exit(1);
     }
 }
