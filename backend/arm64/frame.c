@@ -12,10 +12,16 @@
 
 #define SLOT_SIZE     4       /* every slot holds one i32                  */
 #define STACK_ALIGN   16      /* sp must always be a multiple of 16        */
+#define FP_LR_SIZE    16      /* x29 + x30, saved by the prologue          */
 #define MAX_SUB_IMM   4095    /* the biggest #imm of one  sub sp, sp, #imm */
+
+#define X29  m_reg(29, 1)     /* frame pointer  */
+#define X30  m_reg(30, 1)     /* return address */
+#define SP   m_reg(REG_SP, 1)
 
 static void layout_func(MFunc* f);
 static void slots_to_sp(MFunc* f);
+static void add_prologue(MFunc* f);
 
 
 void frame_layout(MProgram* m) {
@@ -44,6 +50,7 @@ static void layout_func(MFunc* f) {
     }
 
     slots_to_sp(f);
+    add_prologue(f);
 }
 
 /* sp does not move inside the body, so every slot is at a fixed offset from it */
@@ -64,5 +71,20 @@ static void slots_to_sp(MFunc* f) {
                 *op = m_mem(op->slot * SLOT_SIZE, MEM_OFF);
             }
         }
+    }
+}
+
+/* stp  x29, x30, [sp, #-16]!     save the old frame pointer and the return address
+ * add  x29, sp, #0               x29 = sp  (mov x29, sp)
+ * sub  sp, sp, #frame_size       room for the slots  */
+static void add_prologue(MFunc* f) {
+    MBlock* entry = f->head;
+    MInstr* first = entry->head;
+
+    m_insert_before(entry, first, m_stp(X29, X30, m_mem(-FP_LR_SIZE, MEM_PRE)));
+    m_insert_before(entry, first, m_binop(A_ADD, X29, SP, m_imm(0)));
+
+    if (f->frame_size > 0) {
+        m_insert_before(entry, first, m_binop(A_SUB, SP, SP, m_imm(f->frame_size)));
     }
 }
