@@ -12,6 +12,7 @@
 #define W0   m_reg(0, 0)     /* return value             */
 #define W9   m_reg(9, 0)     /* left operand and result  */
 #define W10  m_reg(10, 0)    /* right operand            */
+#define W11  m_reg(11, 0)    /* quotient for srem        */
 
 static void select_func(MProgram* m, const IrFunc* f);
 static void select_block(MFunc* mf, const IrBlock* b);
@@ -63,6 +64,15 @@ static void select_instr(MBlock* mb, const IrInstr* instr) {
             load_into(mb, W9, instr->binop.lhs);
             load_into(mb, W10, instr->binop.rhs);
             m_append(mb, m_binop(arm_op(instr->op), W9, W9, W10));
+            store_from(mb, W9, instr->dst);
+            break;
+
+        /* ARM has no remainder instruction:  a % b = a - (a / b) * b */
+        case IR_SREM:
+            load_into(mb, W9, instr->binop.lhs);
+            load_into(mb, W10, instr->binop.rhs);
+            m_append(mb, m_binop(A_SDIV, W11, W9, W10));
+            m_append(mb, m_msub(W9, W11, W10, W9));
             store_from(mb, W9, instr->dst);
             break;
 
