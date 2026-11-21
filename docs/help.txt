@@ -1,0 +1,123 @@
+BOMI BACKEND
+============
+
+1. PIPELINE
+-----------
+
+  source.c
+     |  flex / bison                          frontend/
+     v
+  AST (Node)
+     |  lower_program                         ir/lower.c
+     v
+  IR  (IrProgram -> IrFunc -> IrBlock -> IrInstr)
+     |  instruction selection                 backend/arm64/select.c
+     v
+  MIR  (MProgram -> MFunc -> MBlock -> MInstr -> MOperand)
+       (only real registers: w0, w9, w10, w11, sp, x29, x30;
+        stack slots still written as [slot N])
+     |  frame layout                          backend/arm64/frame.c
+     v
+  MIR with real stack offsets, prologue and epilogue
+     |  peephole                              backend/passes/peephole.c   (later, optional)
+     v
+  MIR (final)
+     |  emission / printing                   backend/arm64/emit.c
+     v
+  out.s  ->  clang out.s -o prog
+
+
+3. FILES
+--------
+
+  backend/
+    codegen.h / codegen.c
+        codegen_arm64(const IrProgram*, FILE*)
+        runs: select_program -> frame_layout -> m_print -> m_program_free
+
+    mir.h / mir.c
+        enums:      MOpKind, MemMode, AOp, REG_SP / REG_ZR
+        structs:    MOperand, MInstr, MBlock, MFunc, MProgram
+        functions:  m_program_new, m_func_new, m_block_new
+                    m_reg, m_imm, m_slot, m_mem
+                    m_emit, m_insert_before, m_remove
+                    m_program_free
+
+    arm64/
+      select.h / select.c
+          select_program(const IrProgram*) -> MProgram*
+          select_func, select_block, select_instr
+          load_into:   mov reg, #imm       for 0 .. 65535
+                       movz + movk         for anything else (big, negative)
+                       ldr reg, [slot N]   for %vN
+          store_from:  str reg, [slot N]
+          scratch registers: w9, w10, w11.   return value: w0
+
+      frame.h / frame.c
+          frame_layout(MProgram*)
+          frame_size = (nslots * 4 + 15) & ~15     (a multiple of 16)
+          [slot N] -> [sp, #4*N]
+          prologue:   stp  x29, x30, [sp, #-16]!
+                      mov  x29, sp
+                      sub  sp, sp, #frame_size
+          each RET:   mov  sp, x29
+                      ldp  x29, x30, [sp], #16
+                      ret
+          frame > 4095 bytes or slot offset > 16380: go through x16
+
+      emit.h / emit.c
+          m_print(const MProgram*, FILE*)
+          m_print_instr, print_operand, instruction name table
+          file header:  .section __TEXT,__text,regular,pure_instructions
+          per function: .globl _name / .p2align 2 / _name:
+
+    passes/                                       (later, optional)
+      peephole.h / peephole.c
+
+  Every new .c file must also be added to add_executable(bomi ...) in
+  ../CMakeLists.txt (the CMakeLists.txt one folder above bomi/).
+
+
+4. FILE STRUCTURE
+-----------------
+
+  Bomi/
+  ├── CMakeLists.txt
+  └── bomi/
+      ├── data_structures/
+      │   ├── linkedList.h
+      │   └── linkedList.c
+      ├── docs/
+      │   ├── help.md
+      │   ├── help.txt
+      │   ├── LLVM IR.md
+      │   └── C support and ARM64 codegen.txt
+      ├── frontend/
+      │   ├── laxer.l
+      │   ├── parser.y
+      │   ├── ast.h
+      │   └── ast.c
+      ├── ir/
+      │   ├── ir.h
+      │   ├── ir.c
+      │   ├── lower.h
+      │   └── lower.c
+      ├── backend/
+      │   ├── codegen.h
+      │   ├── codegen.c
+      │   ├── mir.h                     (new)
+      │   ├── mir.c                     (new)
+      │   ├── arm64/                    (new)
+      │   │   ├── select.h
+      │   │   ├── select.c
+      │   │   ├── frame.h
+      │   │   ├── frame.c
+      │   │   ├── emit.h
+      │   │   └── emit.c
+      │   └── passes/                   (later, optional)
+      │       ├── peephole.h
+      │       └── peephole.c
+      ├── scripts/
+      │   └── check_ir.sh
+      └── tests/
+          └── input.txt
