@@ -66,4 +66,19 @@ typedef struct {
     MFunc*          head, *tail;
 } MProgram;
 
+/* lists */
+
+MProgram* m_program_new(void);
+MFunc*    m_func_new(MProgram* p, const char* name, int nslots);
+MBlock*   m_block_new(MFunc* f, const char* label);
+
+/* operands */
+
+MOperand  m_reg(int num, int is64);    /* m_reg(9, 0) = w9,  m_reg(REG_SP, 1) = sp */
+MOperand  m_imm(long value);
+MOperand  m_slot(int n);
+MOperand  m_mem(int off, MemMode mode);
+
+void      m_program_free(MProgram* p);
+
 #endif //BOMI_MIR_H
