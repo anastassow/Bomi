@@ -11,6 +11,7 @@
 /* nothing stays in these from one IR instruction to the next */
 #define W0   m_reg(0, 0)     /* return value             */
 #define W9   m_reg(9, 0)     /* left operand and result  */
+#define W10  m_reg(10, 0)    /* right operand            */
 
 static void select_func(MProgram* m, const IrFunc* f);
 static void select_block(MFunc* mf, const IrBlock* b);
@@ -18,6 +19,7 @@ static void select_instr(MBlock* mb, const IrInstr* instr);
 
 static void load_into(MBlock* mb, MOperand reg, Operand o);
 static void store_from(MBlock* mb, MOperand reg, int vreg);
+static AOp  arm_op(IrOp op);
 
 
 MProgram* select_program(const IrProgram* p) {
@@ -56,6 +58,14 @@ static void select_block(MFunc* mf, const IrBlock* b) {
 
 static void select_instr(MBlock* mb, const IrInstr* instr) {
     switch (instr->op) {
+        case IR_ADD: case IR_SUB: case IR_MUL: case IR_SDIV:
+        case IR_AND: case IR_OR:  case IR_XOR: case IR_SHL: case IR_SHR:
+            load_into(mb, W9, instr->binop.lhs);
+            load_into(mb, W10, instr->binop.rhs);
+            m_append(mb, m_binop(arm_op(instr->op), W9, W9, W10));
+            store_from(mb, W9, instr->dst);
+            break;
+
         /* %vN = alloca reserves memory, but the frame already has slot N for it,
          * so slot N IS the variable and nothing needs to happen at runtime */
         case IR_ALLOCA:
@@ -115,4 +125,22 @@ static void load_into(MBlock* mb, MOperand reg, Operand o) {
 /* the result of an instruction goes to the slot of its vreg */
 static void store_from(MBlock* mb, MOperand reg, int vreg) {
     m_append(mb, m_str(reg, m_slot(vreg)));
+}
+
+static AOp arm_op(IrOp op) {
+    switch (op) {
+        case IR_ADD:  return A_ADD;
+        case IR_SUB:  return A_SUB;
+        case IR_MUL:  return A_MUL;
+        case IR_SDIV: return A_SDIV;
+        case IR_AND:  return A_AND;
+        case IR_OR:   return A_ORR;
+        case IR_XOR:  return A_EOR;
+        case IR_SHL:  return A_LSL;
+        case IR_SHR:  return A_ASR;   /* the IR's shr is ashr: keeps the sign */
+
+        default:
+            printf("select: IR op %d is not a binop\n", op);
+            exit(1);
+    }
 }
