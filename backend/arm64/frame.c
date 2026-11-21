@@ -22,6 +22,7 @@
 static void layout_func(MFunc* f);
 static void slots_to_sp(MFunc* f);
 static void add_prologue(MFunc* f);
+static void add_epilogues(MFunc* f);
 
 
 void frame_layout(MProgram* m) {
@@ -51,6 +52,7 @@ static void layout_func(MFunc* f) {
 
     slots_to_sp(f);
     add_prologue(f);
+    add_epilogues(f);
 }
 
 /* sp does not move inside the body, so every slot is at a fixed offset from it */
@@ -86,5 +88,19 @@ static void add_prologue(MFunc* f) {
 
     if (f->frame_size > 0) {
         m_insert_before(entry, first, m_binop(A_SUB, SP, SP, m_imm(f->frame_size)));
+    }
+}
+
+/* before every ret:
+ * add  sp, x29, #0               drop the slots  (mov sp, x29)
+ * ldp  x29, x30, [sp], #16       restore x29 / x30, sp back to where the caller had it */
+static void add_epilogues(MFunc* f) {
+    for (MBlock* b = f->head; b; b = b->next) {
+        for (MInstr* instr = b->head; instr; instr = instr->next) {
+            if (instr->op != A_RET) continue;
+
+            m_insert_before(b, instr, m_binop(A_ADD, SP, X29, m_imm(0)));
+            m_insert_before(b, instr, m_ldp(X29, X30, m_mem(FP_LR_SIZE, MEM_POST)));
+        }
     }
 }
