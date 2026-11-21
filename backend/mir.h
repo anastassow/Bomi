@@ -97,6 +97,11 @@ MInstr*   m_stp  (MOperand r1, MOperand r2, MOperand addr);
 MInstr*   m_ldp  (MOperand r1, MOperand r2, MOperand addr);
 MInstr*   m_ret  (void);
 
+/* placing */
+
+MInstr*   m_append(MBlock* b, MInstr* instr);
+MInstr*   m_insert_before(MBlock* b, MInstr* pos, MInstr* instr);  /* pos NULL = append */
+
 void      m_program_free(MProgram* p);
 
 #endif //BOMI_MIR_H

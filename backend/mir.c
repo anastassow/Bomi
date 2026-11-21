@@ -271,6 +271,56 @@ MInstr* m_ret(void) {
     return m_instr_new(A_RET, 0, NULL);
 }
 
+/* putting instructions into a block */
+
+static void need_free_instr(const char* fn, const MBlock* b, const MInstr* instr) {
+    if (!b || !instr) {
+        printf("%s: invalid block or instruction\n", fn);
+        exit(1);
+    }
+
+    if (instr->prev || instr->next || b->head == instr) {
+        printf("%s: the instruction is already in a block\n", fn);
+        exit(1);
+    }
+}
+
+MInstr* m_append(MBlock* b, MInstr* instr) {
+    need_free_instr("m_append", b, instr);
+
+    instr->prev = b->tail;
+
+    if (!b->head) {
+        b->head = instr;
+    } else {
+        b->tail->next = instr;
+    }
+
+    b->tail = instr;
+
+    return instr;
+}
+
+/* A <-> pos   becomes   A <-> instr <-> pos   (no A when pos was the head) */
+MInstr* m_insert_before(MBlock* b, MInstr* pos, MInstr* instr) {
+    if (!pos) return m_append(b, instr);
+
+    need_free_instr("m_insert_before", b, instr);
+
+    instr->prev = pos->prev;
+    instr->next = pos;
+
+    if (pos->prev) {
+        pos->prev->next = instr;
+    } else {
+        b->head = instr;
+    }
+
+    pos->prev = instr;
+
+    return instr;
+}
+
 void m_program_free(MProgram* p) {
     if (!p) return;
 
