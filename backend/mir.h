@@ -79,6 +79,24 @@ MOperand  m_imm(long value);
 MOperand  m_slot(int n);
 MOperand  m_mem(int off, MemMode mode);
 
+/* instructions: these only make one, m_append / m_insert_before put it in a block */
+
+MInstr*   m_mov  (MOperand dst, long imm);      /* imm 0 .. 65535            */
+MInstr*   m_movz (MOperand dst, long imm);      /* low 16 bits, rest zeroed  */
+MInstr*   m_movk (MOperand dst, long imm);      /* high 16 bits, lsl #16     */
+
+/* add sub mul sdiv and orr eor lsl asr.
+ * rhs can be #0 .. 4095 only for add / sub, otherwise a register */
+MInstr*   m_binop(AOp op, MOperand dst, MOperand lhs, MOperand rhs);
+MInstr*   m_msub (MOperand dst, MOperand n, MOperand m, MOperand a);   /* dst = a - n * m */
+
+/* addr is m_slot(...) or m_mem(...) */
+MInstr*   m_ldr  (MOperand dst, MOperand addr);
+MInstr*   m_str  (MOperand src, MOperand addr);
+MInstr*   m_stp  (MOperand r1, MOperand r2, MOperand addr);
+MInstr*   m_ldp  (MOperand r1, MOperand r2, MOperand addr);
+MInstr*   m_ret  (void);
+
 void      m_program_free(MProgram* p);
 
 #endif //BOMI_MIR_H
