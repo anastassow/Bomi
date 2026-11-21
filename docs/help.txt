@@ -27,7 +27,7 @@ BOMI BACKEND
   out.s  ->  clang out.s -o prog
 
 
-3. FILES
+2. FILES
 --------
 
   backend/
@@ -36,11 +36,13 @@ BOMI BACKEND
         runs: select_program -> frame_layout -> m_print -> m_program_free
 
     mir.h / mir.c
-        enums:      MOpKind, MemMode, AOp, REG_SP / REG_ZR
+        enums:      MOpKind, MemMode, AOp, REG_SP
         structs:    MOperand, MInstr, MBlock, MFunc, MProgram
         functions:  m_program_new, m_func_new, m_block_new
                     m_reg, m_imm, m_slot, m_mem
-                    m_emit, m_insert_before, m_remove
+                    m_mov, m_movz, m_movk, m_binop, m_msub,
+                    m_ldr, m_str, m_stp, m_ldp, m_ret
+                    m_append, m_insert_before
                     m_program_free
 
     arm64/
@@ -63,7 +65,8 @@ BOMI BACKEND
           each RET:   mov  sp, x29
                       ldp  x29, x30, [sp], #16
                       ret
-          frame > 4095 bytes or slot offset > 16380: go through x16
+          frame_size > 4095: print an error and exit (about 1000 vregs in
+          one function; bigger functions are not supported yet)
 
       emit.h / emit.c
           m_print(const MProgram*, FILE*)
@@ -78,7 +81,7 @@ BOMI BACKEND
   ../CMakeLists.txt (the CMakeLists.txt one folder above bomi/).
 
 
-4. FILE STRUCTURE
+3. FILE STRUCTURE
 -----------------
 
   Bomi/
@@ -121,3 +124,266 @@ BOMI BACKEND
       │   └── check_ir.sh
       └── tests/
           └── input.txt
+
+
+
+===============================================================================
+===============================================================================
+
+
+4. MIR STRUCTURES  (all in backend/mir.h)
+-----------------------------------------
+
+  5 structs and 3 enums.
+
+
+  STRUCTS  (from biggest to smallest)
+
+    struct       what it is                    fields
+    -----------  ----------------------------  ------------------------------------
+    MProgram     the whole .s file             head, tail      (list of MFunc)
+    MFunc        one function                  name, nslots, frame_size,
+                                               head, tail      (list of MBlock),
+                                               next
+    MBlock       one basic block               label,
+                                               head, tail      (list of MInstr),
+                                               next
+    MInstr       one ARM instruction           op              (an AOp),
+                                               ops[4]          (MOperands),
+                                               nops, prev, next
+    MOperand     one operand of an instruction kind            (an MOpKind)
+                                               + a union: reg / imm / slot / mem
+
+
+  INSIDE MOperand's UNION
+
+    member   used when kind is   contains             example
+    -------  ------------------  -------------------  ----------------------------
+    reg      MO_REG              num, is64            w9 = {9, 0}   x29 = {29, 1}
+    imm      MO_IMM              a long               #42
+    slot     MO_SLOT             an int (the N)       [slot 3]
+    mem      MO_MEM              off, mode            [sp, #-16]!   (always sp)
+
+
+  ENUMS
+
+    enum       values                                 used for
+    ---------  -------------------------------------  ----------------------------
+    MOpKind    MO_REG, MO_IMM, MO_SLOT, MO_MEM        which union member an
+                                                      MOperand uses
+    MemMode    MEM_OFF, MEM_PRE, MEM_POST             [sp, #12]  /  [sp, #-16]!  /
+                                                      [sp], #16
+    AOp        A_MOV  A_MOVZ A_MOVK                   which ARM instruction an
+               A_ADD  A_SUB  A_MUL  A_SDIV  A_MSUB    MInstr is
+               A_AND  A_ORR  A_EOR  A_LSL   A_ASR
+               A_LDR  A_STR  A_STP  A_LDP
+               A_RET
+
+    Plus one unnamed enum for the special register number:
+        REG_SP = 31                     (0 .. 30 are the normal registers)
+
+
+  AOp: WHAT EACH INSTRUCTION DOES
+
+    nops = how many operands it has. Each kind of instruction has its own
+    function that makes it (see MIR FUNCTIONS below).
+    Examples use w9 / w10 / w11 (the scratch registers) like select.c will.
+
+    AOp      nops  printed as                     what it does
+    -------  ----  -----------------------------  -------------------------------
+    A_MOV     2    mov  w9, #42                   w9 = 42
+                                                  Only 0 .. 65535 (one 16-bit
+                                                  piece). Bomi: small constants.
+
+    A_MOVZ    2    movz w9, #0x5678               w9 = 0x5678, all other bits 0
+                                                  ("move, zero the rest").
+                                                  Bomi: low half of a big
+                                                  constant.
+
+    A_MOVK    2    movk w9, #0x1234, lsl #16      put 0x1234 into bits 16..31,
+                                                  KEEP bits 0..15 ("move, keep").
+                                                  emit adds ", lsl #16" itself.
+                                                  Bomi: high half of a big
+                                                  constant, right after A_MOVZ.
+                                                  movz + movk -> w9 = 0x12345678
+
+    A_ADD     3    add  w9, w9, w10               w9 = w9 + w10
+                                                  Bomi: IR add.
+                   add  x29, sp, #0               x29 = sp     (this is how
+                   add  sp, x29, #0               sp = x29      "mov x29, sp" and
+                                                  "mov sp, x29" really work:
+                                                  prologue / epilogue)
+
+    A_SUB     3    sub  w9, w9, w10               w9 = w9 - w10
+                                                  Bomi: IR sub.
+                   sub  sp, sp, #16               sp = sp - 16: makes room for
+                                                  the slots (prologue)
+
+    A_MUL     3    mul  w9, w9, w10               w9 = w9 * w10 (wraps around
+                                                  on overflow). No #imm form.
+                                                  Bomi: IR mul.
+
+    A_SDIV    3    sdiv w9, w9, w10               w9 = w9 / w10, signed,
+                                                  rounds toward zero (-7/2 = -3).
+                                                  Dividing by 0 gives 0, it does
+                                                  NOT crash. No #imm form.
+                                                  Bomi: IR sdiv, and the first
+                                                  half of IR srem.
+
+    A_MSUB    4    msub w9, w11, w10, w9          w9 = w9 - w11 * w10
+                                                  ("multiply, then subtract").
+                                                  Bomi: second half of IR srem:
+                                                     sdiv w11, w9, w10   q = a / b
+                                                     msub w9, w11, w10, w9
+                                                                  a - q * b = a % b
+
+    A_AND     3    and  w9, w9, w10               w9 = w9 & w10      Bomi: IR and
+
+    A_ORR     3    orr  w9, w9, w10               w9 = w9 | w10      Bomi: IR or
+                                                  (ARM calls it ORR, not OR)
+
+    A_EOR     3    eor  w9, w9, w10               w9 = w9 ^ w10      Bomi: IR xor
+                                                  ("exclusive or": ARM calls it
+                                                  EOR, not XOR)
+
+    A_LSL     3    lsl  w9, w9, w10               w9 = w9 << w10  ("logical shift
+                                                  left"). Uses only the low 5
+                                                  bits of w10 (shift mod 32).
+                                                  Bomi: IR shl  (<<=)
+
+    A_ASR     3    asr  w9, w9, w10               w9 = w9 >> w10, copying the
+                                                  sign bit in from the left
+                                                  ("arithmetic shift right"),
+                                                  so -8 >> 1 = -4.
+                                                  Bomi: IR ashr (>>=)
+
+    A_LDR     2    ldr  w9, [slot 3]              w9 = the 4 bytes in slot 3
+                   ldr  w9, [sp, #12]             (after frame layout)
+                                                  Bomi: reading a vreg's slot,
+                                                  IR load.
+
+    A_STR     2    str  w9, [slot 4]              slot 4 = w9 (4 bytes)
+                   str  w9, [sp, #16]             (after frame layout)
+                                                  Bomi: writing a vreg's slot,
+                                                  IR store.
+
+    A_STP     3    stp  x29, x30, [sp, #-16]!     "store pair": sp = sp - 16,
+                                                  then x29 -> [sp], x30 -> [sp+8]
+                                                  Bomi: first line of every
+                                                  prologue (saves the old frame
+                                                  pointer and the return address)
+
+    A_LDP     3    ldp  x29, x30, [sp], #16       "load pair": x29 <- [sp],
+                                                  x30 <- [sp+8], then sp = sp + 16
+                                                  Bomi: undoes the A_STP in
+                                                  every epilogue
+
+    A_RET     0    ret                            jump to the address in x30
+                                                  (back to the caller).
+                                                  select emits it for IR ret;
+                                                  frame layout puts the epilogue
+                                                  before each one.
+
+
+  MIR FUNCTIONS  (backend/mir.c)
+
+    function                        what it does
+    ------------------------------  ------------------------------------------
+    m_program_new()                 a new, empty MProgram
+    m_func_new(p, name, nslots)     a new MFunc at the end of p
+                                    (copies name; frame_size starts at 0)
+    m_block_new(f, label)           a new MBlock at the end of f (copies label)
+
+    m_reg(num, is64)                register operand
+                                      m_reg(9, 0) = w9    m_reg(29, 1) = x29
+                                      m_reg(REG_SP, 1) = sp
+    m_imm(value)                    #value
+    m_slot(n)                       [slot n]
+    m_mem(off, mode)                [sp, #off]  /  [sp, #off]!  /  [sp], #off
+
+
+  MAKING INSTRUCTIONS: one function for each kind
+
+    They only MAKE the instruction. Step 2 (below) puts it into a block.
+    Each one checks its operands and stops with an error if they are wrong.
+
+    function                        makes                          AOp
+    ------------------------------  -----------------------------  ----------
+    m_mov(dst, imm)                 mov  dst, #imm                 A_MOV
+                                    imm 0 .. 65535
+    m_movz(dst, imm)                movz dst, #imm                 A_MOVZ
+    m_movk(dst, imm)                movk dst, #imm, lsl #16        A_MOVK
+                                    imm 0 .. 65535 for both
+    m_binop(op, dst, lhs, rhs)      op   dst, lhs, rhs             A_ADD A_SUB
+                                    for the 9 instructions with    A_MUL A_SDIV
+                                    this same shape.               A_AND A_ORR
+                                    rhs: a register, or #0..4095   A_EOR A_LSL
+                                    for A_ADD / A_SUB only         A_ASR
+    m_msub(dst, n, m, a)            msub dst, n, m, a              A_MSUB
+                                    (dst = a - n * m)
+    m_ldr(dst, addr)                ldr  dst, addr                 A_LDR
+    m_str(src, addr)                str  src, addr                 A_STR
+                                    addr: m_slot(N) or m_mem(..)
+    m_stp(r1, r2, addr)             stp  r1, r2, addr              A_STP
+    m_ldp(r1, r2, addr)             ldp  r1, r2, addr              A_LDP
+    m_ret()                         ret                            A_RET
+
+    Why one m_binop and not m_add, m_sub, ...: select.c turns ANY IR binop
+    into one call  m_binop(arm_op, w9, w9, w10)  with arm_op from a small
+    table (IR_ADD -> A_ADD, IR_OR -> A_ORR, ...). With 9 functions it would
+    need a 9-case switch for the same thing.
+
+    What the checks catch (all stop with an error message):
+      m_binop(A_MUL, w9, w9, m_imm(3))     mul has no #imm form
+      m_binop(A_LDR, ...)                  ldr is not a binop
+      m_mov(w9, 70000)                     does not fit in 16 bits
+      m_ldr(w9, w10)                       ldr needs an address
+      m_binop(A_SUB, sp, sp, m_imm(5000))  frame too big for one sub
+
+
+  PUTTING INSTRUCTIONS INTO A BLOCK
+
+    m_append(b, instr)              at the END of b             (select.c)
+    m_insert_before(b, pos, instr)  right BEFORE pos            (frame.c)
+                                    pos NULL = at the end of b
+    Both return instr. An instruction can be placed only once.
+
+    m_program_free(p)               frees everything: instructions, blocks,
+                                    labels, functions, names, the program
+
+
+  EXAMPLES
+
+    (W(n) = m_reg(n, 0),  X(n) = m_reg(n, 1),  SP = m_reg(REG_SP, 1))
+
+    select.c:
+      m_append(b, m_mov(W(9), 42));                          mov  w9, #42
+      m_append(b, m_ldr(W(10), m_slot(3)));                  ldr  w10, [slot 3]
+      m_append(b, m_binop(A_ADD, W(9), W(9), W(10)));        add  w9, w9, w10
+      m_append(b, m_msub(W(9), W(11), W(10), W(9)));         msub w9, w11, w10, w9
+      m_append(b, m_str(W(9), m_slot(4)));                   str  w9, [slot 4]
+      m_append(b, m_ret());                                  ret
+
+    frame.c:
+      m_insert_before(b, first,
+          m_stp(X(29), X(30), m_mem(-16, MEM_PRE)));         stp  x29, x30, [sp, #-16]!
+      m_insert_before(b, first,
+          m_binop(A_ADD, X(29), SP, m_imm(0)));              add  x29, sp, #0   (= mov x29, sp)
+      m_insert_before(b, ret,
+          m_ldp(X(29), X(30), m_mem(16, MEM_POST)));         ldp  x29, x30, [sp], #16
+
+
+  HOW THEY FIT TOGETHER
+
+    MProgram
+     └── MFunc                (one per function)
+          └── MBlock          (just "entry" for now)
+               └── MInstr     (mov, add, ldr, ...)
+                    └── MOperand x up to 4   (w9, #42, [slot 3], [sp, #-16]!)
+
+  The same shape as the IR (IrProgram -> IrFunc -> IrBlock -> IrInstr ->
+  Operand), with two differences:
+  - MInstr has a prev pointer, so later stages can insert before an
+    instruction or remove one.
+  - MOperand has more kinds, because ARM has registers and memory addresses,
+    not just values.
