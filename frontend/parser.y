@@ -489,12 +489,15 @@ int main(int argc, char **argv) {
 
 	// codegen_x86(p, stdout);
 
-	/* AST goes to stderr so stdout holds only valid LLVM IR */
+	/* AST and IR go to stderr, so stdout holds only the ARM64 assembly:
+	 *   bomi file.c > out.s && clang out.s -o out && ./out */
 	print_tree(root, stderr);
 
 	p = lower_program(root);
 
-	ir_print(p, stdout);
+	ir_print(p, stderr);
+
+	codegen_arm64(p, stdout);
 
         free_tree(root);
 
