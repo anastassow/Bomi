@@ -9,6 +9,7 @@
 
 %code {
 #include <stdio.h>
+#include <stdlib.h>
 int yylex(void);
 void yyerror(const char *s);
 
@@ -478,10 +479,43 @@ extern FILE *yyin;
 
 void yyerror(const char *s) { fprintf(stderr, "error: %s\n", s); }
 
+/* tests/input.txt + ".ll" -> input.ll  (no file: out.ll) */
+static void output_path(const char *src, const char *ext, char *out, size_t n) {
+	const char *base = src ? strrchr(src, '/') : NULL;
+	base = base ? base + 1 : (src ? src : "out");
+
+	const char *dot = strrchr(base, '.');
+	int len = (dot && dot != base) ? (int)(dot - base) : (int)strlen(base);
+
+	snprintf(out, n, "%.*s%s", len, base, ext);
+}
+
+static FILE *open_output(const char *path) {
+	FILE *f = fopen(path, "w");
+	if (!f) { perror(path); exit(1); }
+	return f;
+}
+
+/* bomi [file.c]
+ *   console     the AST (node tree), and errors
+ *   <name>.ll   the LLVM IR            <name> is file.c without its extension,
+ *   <name>.s    the ARM64 assembly     both written in the current directory
+ *
+ *   bomi input.txt && clang input.s -o input && ./input */
 int main(int argc, char **argv) {
-    if (argc > 1) {
-            yyin = fopen(argv[1], "r");
-            if (!yyin) { perror(argv[1]); return 1; }
+	const char *path = argc > 1 ? argv[1] : NULL;
+
+	char ll_path[1024], s_path[1024];
+	output_path(path, ".ll", ll_path, sizeof ll_path);
+	output_path(path, ".s",  s_path,  sizeof s_path);
+
+	/* a failed run must not leave the last run's files behind */
+	remove(ll_path);
+	remove(s_path);
+
+    if (path) {
+            yyin = fopen(path, "r");
+            if (!yyin) { perror(path); return 1; }
         }
 	root = new_program(list_new());
         int rc = yyparse();
@@ -489,15 +523,17 @@ int main(int argc, char **argv) {
 
 	// codegen_x86(p, stdout);
 
-	/* AST and IR go to stderr, so stdout holds only the ARM64 assembly:
-	 *   bomi file.c > out.s && clang out.s -o out && ./out */
-	print_tree(root, stderr);
+	print_tree(root, stdout);
 
 	p = lower_program(root);
 
-	ir_print(p, stderr);
+	FILE *ll = open_output(ll_path);
+	ir_print(p, ll);
+	fclose(ll);
 
-	codegen_arm64(p, stdout);
+	FILE *s = open_output(s_path);
+	codegen_arm64(p, s);
+	fclose(s);
 
         free_tree(root);
 
