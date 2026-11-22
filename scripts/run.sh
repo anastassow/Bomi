@@ -8,13 +8,13 @@
 #   scripts/run.sh -s file.c        also prints the generated assembly
 #
 # Steps:
-#   1. bomi <file>  >  <name>.s           stdout is the assembly, stderr the AST and IR
+#   1. bomi <file>  ->  <name>.s          bomi writes it (and <name>.ll); the AST it prints goes to <name>.log
 #   2. clang -c <name>.s -o <name>.o      assemble only: checks the .s is valid ARM64
 #   3. clang <name>.o -o <name>           link
 #   4. ./<name>, then print its answer (the exit code)
 #
 # bomi is rebuilt first (incremental), so the run always uses the current sources.
-# <name>.s, <name>.o, <name>.log (AST + IR) and the program are kept in <build dir>/run/.
+# <name>.s, <name>.ll, <name>.o, <name>.log (AST) and the program are kept in <build dir>/run/.
 #
 # Exit code: 0 if the program ran (whatever its answer), 1 if bomi, the assembler or the linker failed.
 # The answer is main's exit code, so only its low 8 bits survive: 300 shows as 44, -1 as 255.
@@ -61,16 +61,19 @@ fi
 BOMI="$BUILD_DIR/bomi"
 [ -x "$BOMI" ] || die "bomi binary not found at $BOMI"
 
-name="$(basename "${src%.*}")"
+name="$(basename "$src")"
+name="${name%.*}"
+src_abs="$(cd "$(dirname "$src")" && pwd)/$(basename "$src")"
 asm="$OUT/$name.s"
 obj="$OUT/$name.o"
 bin="$OUT/$name"
 
-# --- 1. bomi: C -> assembly -------------------------------------------------
-# bomi prints lowering errors to stdout and parse errors to stderr
-if ! "$BOMI" "$src" > "$asm" 2> "$OUT/$name.log"; then
+# --- 1. bomi: C -> <name>.s (and <name>.ll) ----------------------------------
+# bomi writes its files in the directory it runs in, so run it in $OUT;
+# what it prints (the AST, or the error) goes to <name>.log
+if ! (cd "$OUT" && "$BOMI" "$src_abs") > "$OUT/$name.log" 2>&1; then
     echo "FAIL  $src: bomi reported an error" >&2
-    { tail -n 3 "$asm"; grep -i 'error' "$OUT/$name.log" || true; } | sed 's/^/      /' >&2
+    { grep -i 'error' "$OUT/$name.log" || tail -n 3 "$OUT/$name.log"; } | sed 's/^/      /' >&2
     exit 1
 fi
 
