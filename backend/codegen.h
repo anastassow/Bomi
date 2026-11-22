@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include "ir/ir.h"
 
+/* IR -> ARM64 .s for macOS, written to out */
 void codegen_arm64(const IrProgram* p, FILE* out);
 
 #endif //BOMI_CODEGEN_H
