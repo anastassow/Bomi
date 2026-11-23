@@ -55,7 +55,7 @@ Node* root;
 
 %type <list> declaration_list
 %type <n> init_declarator declaration init_declarator_list initializer
-%type <op> assignment_operator
+%type <op> assignment_operator unary_operator
 
 %token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
@@ -76,8 +76,8 @@ postfix_expression
 	| postfix_expression '(' argument_expression_list ')'
 	| postfix_expression '.' IDENTIFIER
 	| postfix_expression PTR_OP IDENTIFIER
-	| postfix_expression INC_OP
-	| postfix_expression DEC_OP
+	| postfix_expression INC_OP				{ $$ = new_unary(OP_POST_INC, $1); }
+	| postfix_expression DEC_OP				{ $$ = new_unary(OP_POST_DEC, $1); }
 	;
 
 argument_expression_list
@@ -87,25 +87,25 @@ argument_expression_list
 
 unary_expression
 	: postfix_expression
-	| INC_OP unary_expression
-	| DEC_OP unary_expression
-	| unary_operator cast_expression
-	| SIZEOF unary_expression
-	| SIZEOF '(' type_name ')'
+	| INC_OP unary_expression 		{ $$ = new_unary(OP_PRE_INC, $2); }
+	| DEC_OP unary_expression 		{ $$ = new_unary(OP_PRE_DEC, $2); }
+	| unary_operator cast_expression 	{ $$ = new_unary($1, $2); }
+	| SIZEOF unary_expression 		{ yyerror("sizeof not supported yet"); free_tree($2); $$ = NULL; YYERROR; }
+	| SIZEOF '(' type_name ')'		{ yyerror("sizeof not supported yet"); $$ = NULL; YYERROR; }
 	;
 
 unary_operator
-	: '&'
-	| '*'
-	| '+'
-	| '-'
-	| '~'
-	| '!'
+	: '&'	{ $$ = OP_ADDR; }
+	| '*'	{ $$ = OP_DEREF; }
+	| '+'	{ $$ = OP_POS; }
+	| '-'	{ $$ = OP_NEG; }
+	| '~'	{ $$ = OP_BNOT; }
+	| '!'	{ $$ = OP_LNOT; }
 	;
 
 cast_expression
 	: unary_expression
-	| '(' type_name ')' cast_expression
+	| '(' type_name ')' cast_expression	{ yyerror("casts not supported yet"); free_tree($4); $$ = NULL; YYERROR; }
 	;
 
 multiplicative_expression
