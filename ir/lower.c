@@ -354,6 +354,18 @@ static Operand lower_unary(LoweringContext* ctx, const Node* node) {
             Operand v = lower_expr(ctx, node->unary.operand);
             return ir_binop(f, b, IR_XOR, v, ir_imm(-1));
         }
+        case OP_PRE_INC:  case OP_PRE_DEC:
+        case OP_POST_INC: case OP_POST_DEC: {
+            Operand addr    = lower_lvalue(ctx, node->unary.operand);
+            IrOp    add_sub = (op == OP_PRE_INC || op == OP_POST_INC) ? IR_ADD : IR_SUB;
+
+            Operand old_v = ir_load(f, b, addr);
+            Operand new_v = ir_binop(f, b, add_sub, old_v, ir_imm(1));
+            ir_store(b, new_v, addr);
+
+            return (op == OP_PRE_INC || op == OP_PRE_DEC) ? new_v : old_v;
+        }
+
         default:            /* OP_LNOT, OP_ADDR, OP_DEREF, OP_SIZEOF */
             printf("Unsupported unary operator: %s\n", op_name(op));
             exit(1);
