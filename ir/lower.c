@@ -21,6 +21,8 @@ static Operand lower_num(LoweringContext* ctx, const Node* node);
 static Operand lower_var(LoweringContext* ctx, const Node* node);
 static Operand lower_binop(LoweringContext* ctx, const Node* node);
 static Operand lower_assign(LoweringContext* ctx, const Node* node);
+static Operand lower_unary(LoweringContext* ctx, const Node* node);
+static Operand lower_lvalue(LoweringContext* ctx, const Node* node);
 
 /* helpers */
 static IrType  lower_type(TypeKind t);
@@ -212,6 +214,7 @@ static Operand lower_expr(LoweringContext* ctx, const Node* node) {
         case NODE_BINOP:    return lower_binop(ctx, node);
         case NODE_VAR:      return lower_var(ctx, node);
         case NODE_ASSIGN:   return lower_assign(ctx, node);
+        case NODE_UNARY:    return lower_unary(ctx, node);
 
         default:
             printf("Unsupported expression type: %d\n", node->type);
@@ -252,6 +255,33 @@ static Operand lower_var(LoweringContext* ctx, const Node* node) {
     return ir_load(ctx->current_func, ctx->current_block, sym->addr);
 }
 
+/* Where something you can assign to is stored: its ADDRESS, not its value.
+ *   x  ->  the slot ir_alloca made for x   (no instruction)
+ * x = v, x += v, ++x, x++ ... use it to know where to store.
+ * Only variables for now: *p, a[i] and s.f come with pointers, arrays and
+ * structs, as more cases here. */
+static Operand lower_lvalue(LoweringContext* ctx, const Node* node) {
+    if (!node) {
+        printf("Expected an lvalue\n");
+        exit(1);
+    }
+
+    switch (node->type) {
+        case NODE_VAR: {
+            const Symbol* sym = symbol_lookup(ctx, node->var.name);
+            if (!sym) {
+                printf("Use of undeclared variable '%s'\n", node->var.name);
+                exit(1);
+            }
+            return sym->addr;
+        }
+
+        default:
+            printf("Expression is not assignable: it must be a variable\n");
+            exit(1);
+    }
+}
+
 /* l op r  ->  lower l, lower r, then %vN = op i32 l, r */
 static Operand lower_binop(LoweringContext* ctx, const Node* node) {
     if (!node || node->type != NODE_BINOP) {
@@ -281,34 +311,66 @@ static Operand lower_assign(LoweringContext* ctx, const Node* node) {
         exit(1);
     }
 
-    const Node* target = node->assign.target;
-    if (!target || target->type != NODE_VAR) {
-        printf("Left side of an assignment must be a variable\n");
-        exit(1);
-    }
-
     if (!node->assign.value) {
-        printf("Assignment to '%s' is missing a value\n", target->var.name);
+        printf("Assignment is missing a value\n");
         exit(1);
     }
 
-    const Symbol* sym = symbol_lookup(ctx, target->var.name);
-    if (!sym) {
-        printf("Assignment to undeclared variable '%s'\n", target->var.name);
-        exit(1);
-    }
+    /* where the value goes: the target's slot */
+    Operand addr = lower_lvalue(ctx, node->assign.target);
 
     Operand value = lower_expr(ctx, node->assign.value);
 
     if (node->assign.op != OP_ASSIGN) {
         IrOp op = lower_operator(compound_to_binary(node->assign.op));
-        Operand current = ir_load(ctx->current_func, ctx->current_block, sym->addr);
+        Operand current = ir_load(ctx->current_func, ctx->current_block, addr);
         value = ir_binop(ctx->current_func, ctx->current_block, op, current, value);
     }
 
-    ir_store(ctx->current_block, value, sym->addr);
+    ir_store(ctx->current_block, value, addr);
 
     return value;
+}
+
+static Operand lower_unary(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_UNARY) {
+        printf("Expected NODE_UNARY\n");
+        exit(1);
+    }
+
+    IrFunc*  f  = ctx->current_func;
+    IrBlock* b  = ctx->current_block;
+    Op       op = node->unary.op;
+
+    switch (op) {
+        case OP_NEG: {
+            Operand v = lower_expr(ctx, node->unary.operand);
+            return ir_binop(f, b, IR_SUB, ir_imm(0), v);
+        }
+
+        case OP_POS:
+            return lower_expr(ctx, node->unary.operand);
+        case OP_BNOT: {
+            Operand v = lower_expr(ctx, node->unary.operand);
+            return ir_binop(f, b, IR_XOR, v, ir_imm(-1));
+        }
+        case OP_PRE_INC:  case OP_PRE_DEC:
+        case OP_POST_INC: case OP_POST_DEC: {
+            Operand addr    = lower_lvalue(ctx, node->unary.operand);
+            IrOp    add_sub = (op == OP_PRE_INC || op == OP_POST_INC) ? IR_ADD : IR_SUB;
+
+            Operand old_v = ir_load(f, b, addr);
+            Operand new_v = ir_binop(f, b, add_sub, old_v, ir_imm(1));
+            ir_store(b, new_v, addr);
+
+            return (op == OP_PRE_INC || op == OP_PRE_DEC) ? new_v : old_v;
+        }
+
+        default:            /* OP_LNOT, OP_ADDR, OP_DEREF, OP_SIZEOF */
+            printf("Unsupported unary operator: %s\n", op_name(op));
+            exit(1);
+    }
+
 }
 
 /* helpers implementation */

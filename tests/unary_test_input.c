@@ -1,93 +1,70 @@
 /*
- * unary_test_input.c: every unary expression the parser can build.
+ * unary_test_input.c: every unary operator bomi compiles:  - + ~ ++ --
+ * (! & * are not supported yet: see docs/partly_implemented).
  *
- * A test for the parser and the AST print. Lowering does not handle
- * NODE_UNARY yet, so bomi writes the tree to compiled/unary_test_input.ast,
- * then stops with "Unsupported expression type".
- *
- * The comment after each line shows how it should group.
- * Rules this file follows, because the parser needs them for now:
- * only block comments, declarations first, one variable per declaration,
- * no sizeof, casts, calls, arrays or comparisons (not supported yet).
+ * The comment after a line shows how it groups.
+ * Only block comments, declarations first, one variable per declaration.
  */
 
 
-/* ---- 1. each operator once, on a variable ------------------------------ */
+/* ---- 1. each operator once ------------------------------------------------- */
 int each_operator() {
     int x = 1;
-    int *p = &x;        /* bomi keeps only "int p" for now, but this is real C */
 
-    -x;                 /* OP_NEG      */
-    +x;                 /* OP_POS      */
-    ~x;                 /* OP_BNOT     */
-    !x;                 /* OP_LNOT     */
-    &x;                 /* OP_ADDR     */
-    *p;                 /* OP_DEREF    */
-    ++x;                /* OP_PRE_INC  */
-    --x;                /* OP_PRE_DEC  */
-    x++;                /* OP_POST_INC */
-    x--;                /* OP_POST_DEC */
+    -x;
+    +x;
+    ~x;
+    ++x;
+    --x;
+    x++;
+    x--;
     return 0;
 }
 
 
-/* ---- 2. on constants and on brackets ------------------------------------ */
+/* ---- 2. on constants and brackets ------------------------------------------ */
 int operands() {
     int x = 1;
 
     -5;
     +5;
     ~5;
-    !0;
     -(x + 1);           /* the operand is the whole + tree */
     ~(x * 2);
-    !(x - 1);
-    -(x);               /* brackets make no node: operand is var x */
+    -(x);               /* brackets make no node */
     return 0;
 }
 
 
-/* ---- 3. unary inside unary ----------------------------------------------- */
+/* ---- 3. unary inside unary ------------------------------------------------- */
 int nesting() {
     int x = 1;
-    int *p = &x;        /* bomi keeps only "int p" for now, but this is real C */
 
     - -x;               /* -(-x): two tokens, not a decrement */
-    --x;                /* one DEC_OP token: a decrement */
+    --x;                /* one token: a decrement */
     - - -x;             /* -(-(-x)) */
     -~x;                /* -(~x) */
     ~-x;                /* ~(-x) */
-    !!x;                /* !(!x) */
-    !-x;                /* !(-x) */
-    -!x;                /* -(!x) */
     -+x;                /* -(+x) */
     +-x;                /* +(-x) */
-    *&x;                /* *(&x) */
-    &*p;                /* &(*p) */
     return 0;
 }
 
 
-/* ---- 4. prefix and postfix together -------------------------------------- */
+/* ---- 4. prefix and postfix together ---------------------------------------- */
 int prefix_postfix() {
     int x = 1;
-    int *p = &x;        /* bomi keeps only "int p" for now, but this is real C */
 
     -x++;               /* -(x++): postfix binds tighter */
     -x--;               /* -(x--) */
     ~x++;               /* ~(x++) */
-    !x--;               /* !(x--) */
     -++x;               /* -(++x) */
     - --x;              /* -(--x) */
-    ++*p;               /* ++(*p) */
-    --*p;               /* --(*p) */
-    *p++;               /* *(p++) */
-    *p--;               /* *(p--) */
     return 0;
 }
 
 
-/* ---- 5. next to binary operators ------------------------------------------ */
+/* ---- 5. next to binary operators ------------------------------------------- */
 int with_binary() {
     int a = 1;
     int b = 2;
@@ -97,13 +74,10 @@ int with_binary() {
     -(a + b);           /* -(a + b) */
     a - -b;             /* a - (-b) */
     a * -b;             /* a * (-b) */
-    -a * b;             /* (-a) * b */
     -a / -b;            /* (-a) / (-b) */
     -x % 3;             /* (-x) % 3 */
     ~a & b;             /* (~a) & b */
-    !a | b;             /* (!a) | b */
     a ^ ~b;             /* a ^ (~b) */
-    a + +b;             /* a + (+b) */
     a+++b;              /* (a++) + b: the lexer takes the longest token */
     a---b;              /* (a--) - b */
     a++ * b--;          /* (a++) * (b--) */
@@ -112,7 +86,7 @@ int with_binary() {
 }
 
 
-/* ---- 6. in every place an expression can be ------------------------------ */
+/* ---- 6. in every place an expression can be -------------------------------- */
 int places() {
     int x = 1;
     int y = -x;         /* in a declaration */
@@ -121,47 +95,25 @@ int places() {
     y = ~x;             /* right of = */
     y += -x;            /* right of += */
     y = -(x = 3);       /* the operand is an assignment */
-    z = y = !x;         /* in a chain */
+    z = y = x++;        /* in a chain */
     return -y;          /* in return */
-}
-
-
-/* ---- 7. parse, but the analysis pass must reject them later --------------- */
-int rejected_later() {
-    int x = 1;
-    int a = 2;
-
-    &(10 + 10);         /* a sum has no address */
-    &5;                 /* a number has no address */
-    &-x;                /* -x has no address */
-    &x++;               /* &(x++): x++ is a value, not a variable */
-    ++5;                /* nothing to write back to */
-    5++;
-    --(a + x);
-    (a + x)++;
-    ++-x;               /* -x is not a variable */
-    ++++x;              /* ++(++x): in C, ++x is not a variable */
-    x++++;              /* (x++)++ */
-    return 0;
 }
 
 
 int main() {
     int x = 5;
 
-    return -x;
+    return -x;          /* answer: 251 (-5 in 8 bits) */
 }
 
 
-/* ---- not in this file --------------------------------------------------------
+/* ---- errors ---------------------------------------------------------------------
  *
- * Not supported yet:
- *   sizeof x, sizeof(int)
- *   (int)x          casts
+ * ++ and -- need a variable:  "Expression is not assignable: it must be a variable"
+ *   ++5   5++   --(a + x)   (a + x)++   ++-x   ++++x   x++++
  *
- * These stop the parser:
- *   ++(int)x        syntax error: ++ never takes a cast (in real C too)
- *   &&x             syntax error: the lexer reads && as one token, not & &
- *   -x = 3          lvalue required as left operand of assignment
- *                   (the check that is still in parser.y)
+ * Stop the parser:
+ *   sizeof x, sizeof(int)   sizeof not supported yet
+ *   (int)x                  casts not supported yet
+ *   ++(int)x                syntax error (++ never takes a cast, in C too)
  */
