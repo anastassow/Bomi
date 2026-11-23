@@ -141,7 +141,7 @@ int main()
  *
  *   int x = 1;  int x = 2;      Redeclaration of 'x'
  *   return y;                   Use of undeclared variable 'y'
- *   z = 3;                      Assignment to undeclared variable 'z'
+ *   z = 3;                      Use of undeclared variable 'z'
  *   return 3000000000;          Integer constant 3000000000 does not fit in an int
  *   5 = 3;                      lvalue required as left operand of assignment
  *   return 1 }                  syntax error
