@@ -96,6 +96,7 @@ Node* new_unary(Op op, Node* operand);
 void list_append(struct LinkedList* dst, struct LinkedList* src);
 
 // for debug clearance
+const char* op_name(Op op);
 void print_tree(const Node *n, FILE *out);
 void free_tree(Node* n);
 

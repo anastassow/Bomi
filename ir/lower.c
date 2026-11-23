@@ -21,6 +21,7 @@ static Operand lower_num(LoweringContext* ctx, const Node* node);
 static Operand lower_var(LoweringContext* ctx, const Node* node);
 static Operand lower_binop(LoweringContext* ctx, const Node* node);
 static Operand lower_assign(LoweringContext* ctx, const Node* node);
+static Operand lower_unary(LoweringContext* ctx, const Node* node);
 
 /* helpers */
 static IrType  lower_type(TypeKind t);
@@ -212,6 +213,7 @@ static Operand lower_expr(LoweringContext* ctx, const Node* node) {
         case NODE_BINOP:    return lower_binop(ctx, node);
         case NODE_VAR:      return lower_var(ctx, node);
         case NODE_ASSIGN:   return lower_assign(ctx, node);
+        case NODE_UNARY:    return lower_unary(ctx, node);
 
         default:
             printf("Unsupported expression type: %d\n", node->type);
@@ -309,6 +311,35 @@ static Operand lower_assign(LoweringContext* ctx, const Node* node) {
     ir_store(ctx->current_block, value, sym->addr);
 
     return value;
+}
+
+static Operand lower_unary(LoweringContext* ctx, const Node* node) {
+    if (!node || node->type != NODE_UNARY) {
+        printf("Expected NODE_UNARY\n");
+        exit(1);
+    }
+
+    IrFunc*  f  = ctx->current_func;
+    IrBlock* b  = ctx->current_block;
+    Op       op = node->unary.op;
+
+    switch (op) {
+        case OP_NEG: {
+            Operand v = lower_expr(ctx, node->unary.operand);
+            return ir_binop(f, b, IR_SUB, ir_imm(0), v);
+        }
+
+        case OP_POS:
+            return lower_expr(ctx, node->unary.operand);
+        case OP_BNOT: {
+            Operand v = lower_expr(ctx, node->unary.operand);
+            return ir_binop(f, b, IR_XOR, v, ir_imm(-1));
+        }
+        default:            /* OP_LNOT, OP_ADDR, OP_DEREF, OP_SIZEOF */
+            printf("Unsupported unary operator: %s\n", op_name(op));
+            exit(1);
+    }
+
 }
 
 /* helpers implementation */
