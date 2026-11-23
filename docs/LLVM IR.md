@@ -267,7 +267,7 @@ entry:
 
 What you need to know:
 
-- **One `define` per C function.** Your `input.txt` has `test` and `main`, so the output has two `define`s.
+- **One `define` per C function.** Your `input.c` has `test` and `main`, so the output has two `define`s.
 - **Functions can be in any order.** `main` can call `@test` even if `@test` is defined below it.
 - **Comments** start with `;` and go to the end of the line.
 - **`target triple` and `target datalayout`** describe your machine (CPU, pointer size...). Both are **optional**.
@@ -503,7 +503,7 @@ Both operands and the result have the same type.
   %f = mul i32 1000000, 1000000      ; -727379968 (10^12 does not fit; low 32 bits kept)
 ```
 
-That is exactly the line `1000000 * 1000000;` in `input.txt`. In C, signed overflow is **undefined behavior**.
+That is exactly the line `1000000 * 1000000;` in `input.c`. In C, signed overflow is **undefined behavior**.
 In LLVM a plain `mul` just wraps. To tell LLVM about C's rule, you add a flag.
 
 ### 7.2 The flags `nsw` and `nuw`
@@ -770,7 +770,7 @@ Some things are worse: they make the whole program meaningless the moment they r
 
 - Emitting `nsw` is correct **because C already says signed overflow is undefined**. You are only telling LLVM what C says.
 - Do **not** put `nsw` on `unsigned` math: unsigned overflow is defined in C (it wraps), so the flag would make correct programs wrong.
-- `input.txt` has `1000000 * 1000000;` (signed overflow). With `mul nsw` that value is poison. That is fine, because the C program is undefined there too.
+- `input.c` has `1000000 * 1000000;` (signed overflow). With `mul nsw` that value is poison. That is fine, because the C program is undefined there too.
 
 ---
 
@@ -790,7 +790,7 @@ This is why CC's `Operand` needs a type. Without it, CC cannot write `add i32` v
 
 ### 13.2 Worked example
 
-`input.txt` contains `((6 & 1) ^ 10) | 100;`. The tree:
+`input.c` contains `((6 & 1) ^ 10) | 100;`. The tree:
 
 ```
         |

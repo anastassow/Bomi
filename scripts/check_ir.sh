@@ -2,7 +2,7 @@
 #
 # Compile source files with bomi and check that the output is valid LLVM IR.
 #
-#   scripts/check_ir.sh                  checks tests/input.txt
+#   scripts/check_ir.sh                  checks tests/input.c
 #   scripts/check_ir.sh a.c b.c ...      checks the given files
 #
 # For each file:
@@ -80,7 +80,7 @@ check() {
     fi
 }
 
-[ $# -gt 0 ] || set -- "$REPO/tests/input.txt"
+[ $# -gt 0 ] || set -- "$REPO/tests/input.c"
 
 status=0
 for src in "$@"; do

@@ -3,7 +3,7 @@
 # Compile a C file with bomi, check the ARM64 it prints is valid assembly,
 # then link and run the program and print its answer (what main returns).
 #
-#   scripts/run.sh                  runs tests/input.txt
+#   scripts/run.sh                  runs tests/input.c
 #   scripts/run.sh file.c           runs the given file
 #   scripts/run.sh -s file.c        also prints the generated assembly
 #
@@ -36,7 +36,7 @@ if [ "${1:-}" = "-s" ]; then
     shift
 fi
 
-src="${1:-$REPO/tests/input.txt}"
+src="${1:-$REPO/tests/input.c}"
 [ -f "$src" ] || die "file not found: $src"
 
 command -v clang > /dev/null || die "clang not found: install the command line tools (xcode-select --install)"
