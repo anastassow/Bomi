@@ -1,0 +1,179 @@
+PARTLY IMPLEMENTED
+==================
+
+Features that work in some stages of bomi but not in all of them, or that
+parse but lose part of what was written. One section per feature: when a
+feature is finished, delete its section.
+
+  stages:  lexer -> parser -> AST -> lowering (IR) -> ARM64
+
+Checked on 2026-11-23 by running bomi on a small program for each line.
+
+
+1. UNARY OPERATORS
+------------------
+
+  stage       state
+  ----------  ------------------------------------------------------------
+  lexer       done
+  parser      done: unary_operator gives the Op; unary_expression and
+              postfix_expression build the node with new_unary
+  AST         done: NODE_UNARY { op, operand }, new_unary, print_tree,
+              free_tree
+  lowering    NOT YET: lower.c has no case for NODE_UNARY, so bomi writes
+              compiled/<name>.ast, then stops with
+              "Unsupported expression type: 16"  (no .ll, no .s)
+  checks      NOT YET: planned for the semantic analysis pass
+
+
+  operator   Op             lowering plan                         waits for
+  ---------  -------------  ------------------------------------  -----------
+  -x         OP_NEG         sub i32 0, x                          -
+  +x         OP_POS         the operand itself                    -
+  ~x         OP_BNOT        xor i32 x, -1                         -
+  ++x  --x   OP_PRE_INC     load, add / sub 1, store;             -
+             OP_PRE_DEC     gives the NEW value
+  x++  x--   OP_POST_INC    load, add / sub 1, store;             -
+             OP_POST_DEC    gives the OLD value
+  !x         OP_LNOT        icmp eq x, 0  then  zext              comparisons
+  &x         OP_ADDR        the variable's slot (its address)     pointer types
+  *p         OP_DEREF       load from the address in p            pointer types
+
+
+  Test: tests/unary_test_input.c parses completely (108 unary nodes) and
+  every tree groups like the comment next to its line.
+
+  Not checked yet. The analysis pass must reject these (the function
+  rejected_later in tests/unary_test_input.c has all 11):
+    - the operand of ++ -- & must be a variable (an lvalue):
+        &(10 + 10)   &5   &-x   &x++   ++5   5++   --(a + x)   (a + x)++
+        ++-x   ++++x   x++++
+    - *p needs p to be a pointer
+
+  Known problems:
+    - -2147483648 (the smallest int) will still fail after lowering: the
+      lexer reads 2147483648 first, and lower_num rejects it as too big
+      before the minus is applied.
+      Fix: in lower_unary, fold - on a NODE_NUM and check the range after
+      negating.
+    - AST labels: OP_NAMES prints the unary operators as "-x" "+x" "&x"
+      "*x" "++x" ... so they differ from the binary "-" "+" "&" "*".
+      The x is only a placeholder, not the variable x:  -5  prints as
+      "-x" with "5" under it.
+
+
+2. SIZEOF AND CASTS
+-------------------
+
+  They parse, then stop with a clear error (before, they crashed):
+
+    sizeof x,  sizeof(int)      error: sizeof not supported yet
+    (int)x,  -(int)x            error: casts not supported yet
+
+  Both need real types first: a Type with a kind and a size (and a base
+  type for int * and int[10]), and actions for type_name,
+  specifier_qualifier_list and abstract_declarator.
+
+  Plan:
+    sizeof   the analysis pass replaces it with a constant; the operand is
+             never run (sizeof x++ does not change x)
+    casts    NODE_CAST { to, operand }, lowered to trunc / sext / zext /
+             sitofp / fptosi ... (docs/LLVM IR.md section 11)
+
+
+3. POINTER AND ARRAY DECLARATIONS
+---------------------------------
+
+    int *p = &x;     ->   decl (type)int (name)p      the * is lost
+    int a[3];        ->   decl (type)int (name)a      the [3] is lost
+
+  declarator / direct_declarator keep only the name, and TypeKind only has
+  TYPE_INT. Comes with the same Type work as sizeof and casts.
+
+
+4. SHIFTS
+---------
+
+    x <<= n,  x >>= n      work   (IR shl / ashr, ARM64 lsl / asr)
+    a << b,   a >> b       WRONG: the parser keeps only a, with no error
+
+  The two shift_expression rules have no action. OP_SHL / OP_SHR, the
+  lowering and the ARM64 code already exist, so the fix is only parser.y:
+
+    | shift_expression LEFT_OP additive_expression   { $$ = new_binop(OP_SHL, $1, $3); }
+    | shift_expression RIGHT_OP additive_expression  { $$ = new_binop(OP_SHR, $1, $3); }
+
+  (Tested on a copy: (5 << 3 >> 1) + (-64 >> 2) + 100 gives 104, the same
+  as clang, and the .ll passes LLVM's verifier.)
+
+
+5. DECLARATIONS
+---------------
+
+    works      int x;   int x = e;      inside a function, one per declaration
+    error      int x, y;                multiple declarators not supported yet
+    error      a declaration after a statement in the same block:
+               syntax error  (the grammar is C89: declarations come first)
+    dropped    global variables (int g = 4;) and prototypes (int f(void);):
+               parsed, then thrown away, with no error
+    crash      any type other than int: char, short, long, float, double,
+               signed, unsigned, const, volatile, static, extern, struct,
+               union, enum ... (the type rules have no action, so the type is
+               garbage)
+
+
+6. FUNCTIONS
+------------
+
+    works      int f() { ... }, several in one file, return, and falling off
+               the end (returns 0)
+    error      parameters parse but are not kept:
+                 int f(int a) { return a; }   ->  Use of undeclared variable 'a'
+    error      a call becomes just the name:
+                 f()   ->  var f               ->  Use of undeclared variable 'f'
+    wrong      void f() { ... }: the return type is never set (it comes out as
+               int), so  return;  gives "Function 'f' must return a value"
+    dropped    a function with no return type ( main() { ... } ) disappears
+
+
+7. CONSTANTS (lexer)
+--------------------
+
+    works      42   0x1F   7u   5L
+    wrong      010             read as 10, should be 8 (octal): the rule uses
+                               strtol with base 10
+    wrong      'a'  2.5  1e3   the lexer never sets their value, so they get
+                               the last value it read, or a pointer
+                               ("Integer constant ... does not fit in an int")
+
+
+8. COMMENTS (lexer)
+-------------------
+
+    works      /* ... */ is skipped
+    wrong      comment() prints the comment text to stdout without a newline,
+               so the next line of output is glued to it:
+                 " hi /compiled/echo.ast"
+    error      // ...           syntax error (there is no rule for it)
+    wrong      an unclosed /* ... is accepted, with no error
+
+  Fix (tested on a copy, not applied): in laxer.l add
+  #include <stdlib.h>, a rule after the "/*" one:
+
+    "//"[^\n]*      { /* line comment: skip to the end of the line */ }
+
+  and replace comment() with:
+
+    void comment(void)
+    {
+        int c, prev = 0;
+
+        while ((c = input()) != 0 && c != EOF) {
+            if (prev == '*' && c == '/')
+                return;
+            prev = c;
+        }
+
+        fprintf(stderr, "error: unterminated comment\n");
+        exit(1);
+    }

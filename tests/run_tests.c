@@ -7,7 +7,7 @@
 //   2. scripts/run.sh        bomi -> <name>.s -> clang -c: is it valid ARM64 assembly?
 //                            then link, run it and print the answer
 //
-//   bomi_tests                 checks tests/input.txt
+//   bomi_tests                 checks tests/input.c
 //   bomi_tests a.c b.c ...     checks the given files
 //
 // In CLion: pick bomi_tests and press Run (bomi is built first).
@@ -27,7 +27,7 @@
 
 #define CHECK_IR BOMI_REPO "/scripts/check_ir.sh"
 #define RUN      BOMI_REPO "/scripts/run.sh"
-#define DEFAULT  BOMI_REPO "/tests/input.txt"
+#define DEFAULT  BOMI_REPO "/tests/input.c"
 
 /* bash <script> <files...>; returns 1 if it ran and exited with 0 */
 static int run_script(const char* script, char* const files[], int nfiles) {

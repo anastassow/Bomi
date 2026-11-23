@@ -2,16 +2,16 @@
 #
 # Compile source files with bomi and check that the output is valid LLVM IR.
 #
-#   scripts/check_ir.sh                  checks tests/input.txt
+#   scripts/check_ir.sh                  checks tests/input.c
 #   scripts/check_ir.sh a.c b.c ...      checks the given files
 #
 # For each file:
-#   1. bomi <file>  ->  <name>.ll             (bomi writes it; the AST it prints goes to <name>.log)
+#   1. bomi <file>  ->  compiled/<name>.ll    (bomi writes it, with compiled/<name>.ast and .s; what it prints goes to <name>.log)
 #   2. opt -passes=verify -disable-output <file>.ll
 #      LLVM's verifier: checks the IR is valid, does not run or compile it.
 #
 # bomi is rebuilt first (incremental), so the check always uses the current sources.
-# The .ll files (and the .s bomi writes next to them) are kept in <build dir>/check_ir/.
+# bomi's files (.ast, .ll, .s) are kept in <build dir>/check_ir/compiled/.
 #
 # Exit code: 0 if every file produced valid LLVM IR, 1 otherwise.
 #
@@ -58,13 +58,13 @@ check() {
     local src="$1" base ll src_abs
     base="$(basename "$src")"
     base="${base%.*}"
-    ll="$OUT/$base.ll"
+    ll="$OUT/compiled/$base.ll"
 
     [ -f "$src" ] || { echo "FAIL  $src: file not found"; return 1; }
     src_abs="$(cd "$(dirname "$src")" && pwd)/$(basename "$src")"
 
-    # bomi writes <name>.ll and <name>.s in the directory it runs in, so run it in $OUT;
-    # what it prints (the AST, or the error) goes to <name>.log
+    # bomi writes its files to compiled/ in the directory it runs in, so run it in $OUT;
+    # what it prints (errors, or the files it wrote) goes to <name>.log
     if ! (cd "$OUT" && "$BOMI" "$src_abs") > "$OUT/$base.log" 2>&1; then
         echo "FAIL  $src: bomi reported an error"
         { grep -i 'error' "$OUT/$base.log" || tail -n 3 "$OUT/$base.log"; } | sed 's/^/      /'
@@ -80,7 +80,7 @@ check() {
     fi
 }
 
-[ $# -gt 0 ] || set -- "$REPO/tests/input.txt"
+[ $# -gt 0 ] || set -- "$REPO/tests/input.c"
 
 status=0
 for src in "$@"; do

@@ -1,6 +1,11 @@
 int main()
 {
-    return 1*283/2345;
+    int x;
+    x = 10;
+    x = x % 3;
+    x *= (10 * 10) | 10;
+
+    return x;
 }
 
 int func() {

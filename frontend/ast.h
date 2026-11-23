@@ -47,7 +47,8 @@ typedef enum {
     NODE_DECLARATION = 0x06,
     NODE_VAR = 0x07,
     NODE_ASSIGN = 0x08,
-    NODE_EXPR_STMT = 0x09
+    NODE_EXPR_STMT = 0x09,
+    NODE_UNARY = 0x10
 } NodeType;
 
 typedef struct Node Node;
@@ -61,6 +62,7 @@ typedef struct { TypeKind type; char* name; Node* init; }                       
 typedef struct { char* name; }                                                          VarNode;
 typedef struct { Op op; Node* target; Node* value; }                                    AssignNode;
 typedef struct { Node* expr; }                                                          ExprStmtNode;
+typedef struct { Op op; Node* operand; }                                                UnaryNode;
 
 struct Node{
     NodeType type;
@@ -75,6 +77,7 @@ struct Node{
         VarNode         var;
         AssignNode      assign;
         ExprStmtNode    expr_stmt;
+        UnaryNode       unary;
     };
 };
 
@@ -88,6 +91,7 @@ Node* new_decl(TypeKind type, char* name, Node* init);
 Node* new_var(char* name);
 Node* new_assign(Op op, Node* target, Node* value);
 Node* new_expr_stmt(Node* expr);
+Node* new_unary(Op op, Node* operand);
 
 void list_append(struct LinkedList* dst, struct LinkedList* src);
 

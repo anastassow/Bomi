@@ -3,18 +3,18 @@
 # Compile a C file with bomi, check the ARM64 it prints is valid assembly,
 # then link and run the program and print its answer (what main returns).
 #
-#   scripts/run.sh                  runs tests/input.txt
+#   scripts/run.sh                  runs tests/input.c
 #   scripts/run.sh file.c           runs the given file
 #   scripts/run.sh -s file.c        also prints the generated assembly
 #
 # Steps:
-#   1. bomi <file>  ->  <name>.s          bomi writes it (and <name>.ll); the AST it prints goes to <name>.log
+#   1. bomi <file>  ->  compiled/<name>.s   bomi writes it (and compiled/<name>.ll, compiled/<name>.ast); what it prints goes to <name>.log
 #   2. clang -c <name>.s -o <name>.o      assemble only: checks the .s is valid ARM64
 #   3. clang <name>.o -o <name>           link
 #   4. ./<name>, then print its answer (the exit code)
 #
 # bomi is rebuilt first (incremental), so the run always uses the current sources.
-# <name>.s, <name>.ll, <name>.o, <name>.log (AST) and the program are kept in <build dir>/run/.
+# bomi's files are kept in <build dir>/run/compiled/; <name>.o, <name>.log and the program in <build dir>/run/.
 #
 # Exit code: 0 if the program ran (whatever its answer), 1 if bomi, the assembler or the linker failed.
 # The answer is main's exit code, so only its low 8 bits survive: 300 shows as 44, -1 as 255.
@@ -36,7 +36,7 @@ if [ "${1:-}" = "-s" ]; then
     shift
 fi
 
-src="${1:-$REPO/tests/input.txt}"
+src="${1:-$REPO/tests/input.c}"
 [ -f "$src" ] || die "file not found: $src"
 
 command -v clang > /dev/null || die "clang not found: install the command line tools (xcode-select --install)"
@@ -64,13 +64,13 @@ BOMI="$BUILD_DIR/bomi"
 name="$(basename "$src")"
 name="${name%.*}"
 src_abs="$(cd "$(dirname "$src")" && pwd)/$(basename "$src")"
-asm="$OUT/$name.s"
+asm="$OUT/compiled/$name.s"
 obj="$OUT/$name.o"
 bin="$OUT/$name"
 
 # --- 1. bomi: C -> <name>.s (and <name>.ll) ----------------------------------
-# bomi writes its files in the directory it runs in, so run it in $OUT;
-# what it prints (the AST, or the error) goes to <name>.log
+# bomi writes its files to compiled/ in the directory it runs in, so run it in $OUT;
+# what it prints (errors, or the files it wrote) goes to <name>.log
 if ! (cd "$OUT" && "$BOMI" "$src_abs") > "$OUT/$name.log" 2>&1; then
     echo "FAIL  $src: bomi reported an error" >&2
     { grep -i 'error' "$OUT/$name.log" || tail -n 3 "$OUT/$name.log"; } | sed 's/^/      /' >&2

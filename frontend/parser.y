@@ -10,6 +10,8 @@
 %code {
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <sys/stat.h>
 int yylex(void);
 void yyerror(const char *s);
 
@@ -55,7 +57,7 @@ Node* root;
 
 %type <list> declaration_list
 %type <n> init_declarator declaration init_declarator_list initializer
-%type <op> assignment_operator
+%type <op> assignment_operator unary_operator
 
 %token CASE DEFAULT IF ELSE SWITCH WHILE DO FOR GOTO CONTINUE BREAK RETURN
 
@@ -76,8 +78,8 @@ postfix_expression
 	| postfix_expression '(' argument_expression_list ')'
 	| postfix_expression '.' IDENTIFIER
 	| postfix_expression PTR_OP IDENTIFIER
-	| postfix_expression INC_OP
-	| postfix_expression DEC_OP
+	| postfix_expression INC_OP				{ $$ = new_unary(OP_POST_INC, $1); }
+	| postfix_expression DEC_OP				{ $$ = new_unary(OP_POST_DEC, $1); }
 	;
 
 argument_expression_list
@@ -87,25 +89,25 @@ argument_expression_list
 
 unary_expression
 	: postfix_expression
-	| INC_OP unary_expression
-	| DEC_OP unary_expression
-	| unary_operator cast_expression
-	| SIZEOF unary_expression
-	| SIZEOF '(' type_name ')'
+	| INC_OP unary_expression 		{ $$ = new_unary(OP_PRE_INC, $2); }
+	| DEC_OP unary_expression 		{ $$ = new_unary(OP_PRE_DEC, $2); }
+	| unary_operator cast_expression 	{ $$ = new_unary($1, $2); }
+	| SIZEOF unary_expression 		{ yyerror("sizeof not supported yet"); free_tree($2); $$ = NULL; YYERROR; }
+	| SIZEOF '(' type_name ')'		{ yyerror("sizeof not supported yet"); $$ = NULL; YYERROR; }
 	;
 
 unary_operator
-	: '&'
-	| '*'
-	| '+'
-	| '-'
-	| '~'
-	| '!'
+	: '&'	{ $$ = OP_ADDR; }
+	| '*'	{ $$ = OP_DEREF; }
+	| '+'	{ $$ = OP_POS; }
+	| '-'	{ $$ = OP_NEG; }
+	| '~'	{ $$ = OP_BNOT; }
+	| '!'	{ $$ = OP_LNOT; }
 	;
 
 cast_expression
 	: unary_expression
-	| '(' type_name ')' cast_expression
+	| '(' type_name ')' cast_expression	{ yyerror("casts not supported yet"); free_tree($4); $$ = NULL; YYERROR; }
 	;
 
 multiplicative_expression
@@ -479,7 +481,10 @@ extern FILE *yyin;
 
 void yyerror(const char *s) { fprintf(stderr, "error: %s\n", s); }
 
-/* tests/input.txt + ".ll" -> input.ll  (no file: out.ll) */
+/* every file bomi writes goes in this folder, in the current directory */
+#define COMPILED_DIR "compiled"
+
+/* tests/input.c + ".ll" -> compiled/input.ll  (no file: compiled/out.ll) */
 static void output_path(const char *src, const char *ext, char *out, size_t n) {
 	const char *base = src ? strrchr(src, '/') : NULL;
 	base = base ? base + 1 : (src ? src : "out");
@@ -487,7 +492,15 @@ static void output_path(const char *src, const char *ext, char *out, size_t n) {
 	const char *dot = strrchr(base, '.');
 	int len = (dot && dot != base) ? (int)(dot - base) : (int)strlen(base);
 
-	snprintf(out, n, "%.*s%s", len, base, ext);
+	snprintf(out, n, "%s/%.*s%s", COMPILED_DIR, len, base, ext);
+}
+
+/* create compiled/ if it is not there yet */
+static void make_compiled_dir(void) {
+	if (mkdir(COMPILED_DIR, 0755) != 0 && errno != EEXIST) {
+		perror(COMPILED_DIR);
+		exit(1);
+	}
 }
 
 static FILE *open_output(const char *path) {
@@ -497,19 +510,24 @@ static FILE *open_output(const char *path) {
 }
 
 /* bomi [file.c]
- *   console     the AST (node tree), and errors
- *   <name>.ll   the LLVM IR            <name> is file.c without its extension,
- *   <name>.s    the ARM64 assembly     both written in the current directory
+ *   compiled/<name>.ast   the AST (node tree)    <name> is file.c without its
+ *   compiled/<name>.ll    the LLVM IR            extension; compiled/ is made in
+ *   compiled/<name>.s     the ARM64 assembly     the current directory
+ *   console             errors, and the files written
  *
- *   bomi input.txt && clang input.s -o input && ./input */
+ *   bomi tests/input.c && clang compiled/input.s -o input && ./input */
 int main(int argc, char **argv) {
 	const char *path = argc > 1 ? argv[1] : NULL;
 
-	char ll_path[1024], s_path[1024];
-	output_path(path, ".ll", ll_path, sizeof ll_path);
-	output_path(path, ".s",  s_path,  sizeof s_path);
+	make_compiled_dir();
+
+	char ast_path[1024], ll_path[1024], s_path[1024];
+	output_path(path, ".ast", ast_path, sizeof ast_path);
+	output_path(path, ".ll",  ll_path,  sizeof ll_path);
+	output_path(path, ".s",   s_path,   sizeof s_path);
 
 	/* a failed run must not leave the last run's files behind */
+	remove(ast_path);
 	remove(ll_path);
 	remove(s_path);
 
@@ -523,17 +541,23 @@ int main(int argc, char **argv) {
 
 	// codegen_x86(p, stdout);
 
-	print_tree(root, stdout);
+	/* written before lowering, so it is there even when lowering fails */
+	FILE *ast = open_output(ast_path);
+	print_tree(root, ast);
+	fclose(ast);
+	printf("%s\n", ast_path);
 
 	p = lower_program(root);
 
 	FILE *ll = open_output(ll_path);
 	ir_print(p, ll);
 	fclose(ll);
+	printf("%s\n", ll_path);
 
 	FILE *s = open_output(s_path);
 	codegen_arm64(p, s);
 	fclose(s);
+	printf("%s\n", s_path);
 
         free_tree(root);
 

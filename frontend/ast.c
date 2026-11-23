@@ -137,6 +137,14 @@ Node* new_assign(Op op, Node* target , Node* value) {
     return n;
 }
 
+Node* new_unary(Op op, Node* operand) {
+    Node* n = new_node(NODE_UNARY);
+    n->unary.op = op;
+    n->unary.operand = operand;
+
+    return n;
+}
+
 /* Functions for debug clearance for printing */
 
 static void print_rec(const Node *n, const char *prefix, int last, FILE *out);
@@ -173,6 +181,8 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
         case NODE_EXPR_STMT:
             fprintf(out, "expr_stmt\n");
             break;
+        case NODE_UNARY:    fprintf(out, "%s\n", op_name(n->unary.op));
+            break;
     }
 
     char child[256];
@@ -203,6 +213,9 @@ static void print_rec(const Node *n, const char *prefix, int last, FILE *out) {
             break;
         case NODE_EXPR_STMT:
             print_rec(n->expr_stmt.expr, child, 1, out);
+            break;
+        case NODE_UNARY:
+            print_rec(n->unary.operand, child, 1, out);
             break;
         default:
             break;
@@ -248,6 +261,9 @@ void free_tree(Node* n) {
                 break;
             case NODE_EXPR_STMT:
                 free_tree(n->expr_stmt.expr);
+                break;
+            case NODE_UNARY:
+                free_tree(n->unary.operand);
                 break;
         }
 
