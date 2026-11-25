@@ -125,8 +125,8 @@ additive_expression
 
 shift_expression
 	: additive_expression
-	| shift_expression LEFT_OP additive_expression
-	| shift_expression RIGHT_OP additive_expression
+	| shift_expression LEFT_OP additive_expression	{ $$ = new_binop(OP_SHL, $1, $3); }
+	| shift_expression RIGHT_OP additive_expression	{ $$ = new_binop(OP_SHR, $1, $3); }
 	;
 
 relational_expression
