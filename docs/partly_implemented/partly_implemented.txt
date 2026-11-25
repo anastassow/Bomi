@@ -28,12 +28,6 @@ POINTER AND ARRAY DECLARATIONS
   int *p;  int a[3];  become plain  int p;  int a;  (the * and [3] are lost)
 
 
-SHIFTS
-  x <<= n  and  x >>= n  work.
-  a << b  and  a >> b  keep only a: the two shift rules in parser.y have no
-  action. Fix:  { $$ = new_binop(OP_SHL, $1, $3); }  and the same with OP_SHR.
-
-
 DECLARATIONS
   One variable per declaration: int x, y; is an error.
   Declarations must come before statements in a block (C89).
