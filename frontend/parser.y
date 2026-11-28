@@ -324,11 +324,11 @@ declarator
 	;
 
 direct_declarator
-	: IDENTIFIER					{ $$ = $1; }
+	: IDENTIFIER					{ $$ = $1; } // var Node
 	| '(' declarator ')'				{ $$ = $2; }
 	| direct_declarator '[' constant_expression ']'	{ $$ = $1; }
 	| direct_declarator '[' ']'			{ $$ = $1; }
-	| direct_declarator '(' parameter_type_list ')'	{ $$ = $1; }
+	| direct_declarator '(' parameter_type_list ')'	{ $$ = $1; } // new func node
 	| direct_declarator '(' identifier_list ')'	{ $$ = $1; }
 	| direct_declarator '(' ')' 			{ $$ = $1; }
 	;

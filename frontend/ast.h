@@ -51,35 +51,43 @@ typedef enum {
     NODE_UNARY = 0x10
 } NodeType;
 
-typedef struct Node Node;
+typedef struct { NodeType type; struct Node* next; } Node;
 
-typedef struct { long value; }                                                          NumNode;
-typedef struct { Op op; Node* l; Node* r; }                                             BinOpNode;
-typedef struct { char* name; struct LinkedList* body; TypeKind return_type;}            FuncNode;
-typedef struct { struct LinkedList* program; }                                          ProgramNode;
+typedef struct { long value; }                                                          NumNode; // constNode
+typedef struct { Op op; Node* l; Node* r; }                                             BinOpNode; // oprerationNode
+typedef struct { char* name; struct LinkedList* body; TypeKind return_type;}            FuncNode; // int x(int z, int d) { } Decl -> decl func
+typedef struct { struct LinkedList* program; }                                          ProgramNode; //
 typedef struct { Node* expr; }                                                          ReturnNode;
-typedef struct { TypeKind type; char* name; Node* init; }                               DeclNode;
-typedef struct { char* name; }                                                          VarNode;
+typedef struct { TypeKind type; char* name; Node* init; }                               DeclNode; // int x; int x = 10;
+typedef struct { char* name; }                                                          VarNode; // x += 4 -> x = x + 4
 typedef struct { Op op; Node* target; Node* value; }                                    AssignNode;
 typedef struct { Node* expr; }                                                          ExprStmtNode;
 typedef struct { Op op; Node* operand; }                                                UnaryNode;
 
-struct Node{
-    NodeType type;
-    Node*    next;
-    union {
-        NumNode         num;
-        BinOpNode       binop;
-        FuncNode        func;
-        ProgramNode     program;
-        ReturnNode      ret;
-        DeclNode        decl;
-        VarNode         var;
-        AssignNode      assign;
-        ExprStmtNode    expr_stmt;
-        UnaryNode       unary;
-    };
-};
+// new structures that are relevant for the grammar
+typedef struct { Node base; struct LinkedList* declarations; }                                     TranslationUnitNode; //ready
+typedef struct { Node base; struct LinkedList* specifiers; Node* declarator; Node* body; }         FunctionDefinitionNode; // i haven't made a declarator struct and specifiers
+typedef struct { Node base; struct LinkedList* specifiers; struct LinkedList* init_declarators; }  DeclarationNode; // i haven't done specifiers
+typedef struct { Node base; Node* declarator; Node* initializer; }                                 InitDeclaratorNode; // i haven't done declarator
+typedef struct { Node base; struct LinkedList* items; }                                            InitializerListNode; // ready
+
+
+// struct Node{
+//     NodeType type;
+//     Node*    next;
+//     union {
+//         NumNode         num;
+//         BinOpNode       binop;
+//         FuncNode        func;
+//         ProgramNode     program;
+//         ReturnNode      ret;
+//         DeclNode        decl;
+//         VarNode         var;
+//         AssignNode      assign;
+//         ExprStmtNode    expr_stmt;
+//         UnaryNode       unary;
+//     };
+// };
 
 Node* new_num(long value);
 Node* new_binop(Op op, Node* left, Node* right);
